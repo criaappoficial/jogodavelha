@@ -264,6 +264,28 @@ button{cursor:pointer}
 .modal-actions{display:flex;gap:.6rem;justify-content:space-between;flex-wrap:wrap}
 .modal-actions .btn{flex:1;min-width:120px}
 
+/* ===== ONLINE MODE ===== */
+.online-tabs{display:flex;gap:.35rem;background:var(--surface-2);padding:.3rem;border-radius:var(--radius-sm)}
+.tab-btn{flex:1;padding:.5rem;border:none;border-radius:calc(var(--radius-sm) - 2px);background:transparent;color:var(--text-muted);font-weight:600;font-size:.85rem;transition:var(--transition);cursor:pointer}
+.tab-btn.active{background:var(--surface);color:var(--text)}
+.room-code-box{display:flex;flex-direction:column;align-items:center;gap:.6rem;padding:1.1rem;background:var(--surface-2);border-radius:var(--radius);border:1px solid var(--border);width:100%}
+.room-code-val{font-size:clamp(2rem,10vw,2.8rem);font-weight:800;letter-spacing:.35em;color:var(--primary);font-family:ui-monospace,monospace;line-height:1}
+.room-code-hint{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted)}
+.code-input{width:100%;padding:.75rem;border-radius:var(--radius-sm);border:2px solid var(--border);background:var(--surface-2);color:var(--text);font-size:clamp(1.4rem,7vw,2rem);font-weight:800;letter-spacing:.3em;text-align:center;text-transform:uppercase;font-family:ui-monospace,monospace;transition:var(--transition)}
+.code-input:focus-visible{outline:none;border-color:var(--primary)}
+.code-input::placeholder{opacity:.3;letter-spacing:.2em}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin 700ms linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-msg{color:#f87171;font-size:.8rem;min-height:1.4em;margin:0;text-align:center}
+.waiting-body{display:flex;flex-direction:column;align-items:center;gap:1rem;text-align:center;width:100%}
+.conn-dot{width:9px;height:9px;border-radius:50%;background:var(--draw-color);display:inline-block;animation:blink 1.2s ease infinite;vertical-align:middle;margin-right:.3rem}
+.conn-dot.on{background:#4ade80;animation:none}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.my-role-pill{display:inline-flex;align-items:center;gap:.4rem;font-size:.8rem;background:var(--surface-2);border:1px solid var(--border);padding:.3rem .7rem;border-radius:999px;font-weight:600;color:var(--text-muted)}
+.my-role-pill .mark{font-weight:800;font-size:1rem}
+.my-role-pill .mark.x{color:var(--x-color)}
+.my-role-pill .mark.o{color:var(--o-color)}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -372,6 +394,11 @@ button{cursor:pointer}
     Alternar modo
   </button>
 
+  <button class="drawer-item primary" id="drawerOnline">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+    Jogar Online
+  </button>
+
   <div class="drawer-sep"></div>
   <p class="drawer-title">Configurações</p>
 
@@ -384,6 +411,58 @@ button{cursor:pointer}
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"/></svg>
     Zerar placar
   </button>
+</div>
+
+<!-- ===== MODAL ONLINE ===== -->
+<div class="modal-overlay" id="onlineModal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle" hidden>
+  <div class="modal">
+    <h2 id="onlineTitle">🌐 Jogar Online</h2>
+    <div class="online-tabs" role="tablist">
+      <button class="tab-btn active" id="tabCriar" role="tab" aria-selected="true" aria-controls="panelCriar">Criar sala</button>
+      <button class="tab-btn" id="tabEntrar" role="tab" aria-selected="false" aria-controls="panelEntrar">Entrar em sala</button>
+    </div>
+
+    <div id="panelCriar" role="tabpanel">
+      <p style="font-size:.85rem;color:var(--text-muted);margin:0">
+        Crie uma sala e compartilhe o código de 6 letras com seu amigo.
+      </p>
+      <div class="modal-actions">
+        <button class="btn" id="cancelOnlineBtn">Cancelar</button>
+        <button class="btn btn-primary" id="createRoomBtn">Criar sala</button>
+      </div>
+    </div>
+
+    <div id="panelEntrar" role="tabpanel" hidden>
+      <div class="field">
+        <label for="codeInput">Código da sala</label>
+        <input class="code-input" id="codeInput" maxlength="6" placeholder="ABC123" autocomplete="off" spellcheck="false" inputmode="text" />
+      </div>
+      <p class="error-msg" id="joinError" aria-live="assertive"></p>
+      <div class="modal-actions">
+        <button class="btn" id="cancelOnlineBtn2">Cancelar</button>
+        <button class="btn btn-primary" id="joinRoomBtn">Entrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL AGUARDANDO OPONENTE ===== -->
+<div class="modal-overlay" id="waitingModal" role="dialog" aria-modal="true" aria-label="Aguardando oponente" hidden>
+  <div class="modal">
+    <div class="waiting-body">
+      <div class="spinner"></div>
+      <h2 style="margin:0">Aguardando oponente…</h2>
+      <div class="room-code-box">
+        <span class="room-code-hint">Código da sala</span>
+        <span class="room-code-val" id="waitingCode">------</span>
+        <button class="btn" id="copyCodeBtn" style="width:100%">📋 Copiar código</button>
+      </div>
+      <p style="font-size:.8rem;color:var(--text-muted);margin:0">
+        Envie este código para seu amigo. O jogo começa quando ele entrar.
+      </p>
+      <button class="btn btn-ghost" id="cancelWaitBtn" style="width:100%">Cancelar</button>
+    </div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
@@ -682,7 +761,7 @@ button{cursor:pointer}
       } else {
         cell.setAttribute('aria-label', `Posição ${i+1}, vazia`);
       }
-      if(Game.finished || Game.aiThinking){
+      if(Game.finished || Game.aiThinking || (Game.mode === 'online' && Online.myMark !== Game.current)){
         cell.classList.add('disabled');
         cell.setAttribute('aria-disabled','true');
       } else {
@@ -708,6 +787,11 @@ button{cursor:pointer}
       }
     } else if(Game.aiThinking){
       els.turn.innerHTML = `Computador pensando…`;
+    } else if(Game.mode === 'online'){
+      const isMyTurn = Online.myMark === Game.current;
+      els.turn.innerHTML = isMyTurn
+        ? `Sua vez &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`
+        : `Vez do oponente &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
     } else {
       els.turn.innerHTML = `Vez de <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
     }
@@ -723,7 +807,8 @@ button{cursor:pointer}
     els.scoreD.classList.remove('active');
 
     // Badge de modo
-    els.modeBadge.textContent = Game.mode === 'pve' ? 'Vs Computador' : '2 Jogadores';
+    if(Game.mode === 'online') els.modeBadge.textContent = '🌐 Online';
+    else els.modeBadge.textContent = Game.mode === 'pve' ? 'Vs Computador' : '2 Jogadores';
   }
 
   /* ===== Mensagens ===== */
@@ -756,6 +841,16 @@ button{cursor:pointer}
   /* ===== Clique em célula ===== */
   function handleCellClick(index){
     if(Game.finished || Game.aiThinking) return;
+
+    // Modo online: delega ao Firebase
+    if(Game.mode === 'online'){
+      if(Online.myMark !== Game.current) return; // não é sua vez
+      if(Game.board[index]) return;
+      showMessage('');
+      Online.makeMove(index);
+      return;
+    }
+
     if(Game.mode === 'pve' && Game.current === 'O') return; // vez da IA
     if(Game.board[index]) return;
 
@@ -798,6 +893,11 @@ button{cursor:pointer}
 
   /* ===== Controles ===== */
   function startNewGame(){
+    if(Game.mode === 'online'){
+      if(Online.isHost) Online.resetGame();
+      else showMessage('Aguarde o host iniciar um novo jogo.', '');
+      return;
+    }
     Game.reset(Game.mode, Game.firstPlayer);
     showMessage('');
     render();
@@ -811,6 +911,10 @@ button{cursor:pointer}
   }
 
   function switchMode(){
+    if(Game.mode === 'online'){
+      leaveOnlineGame();
+      return;
+    }
     Game.mode = Game.mode === 'pvp' ? 'pve' : 'pvp';
     state.mode = Game.mode;
     Storage.save(state);
@@ -894,6 +998,262 @@ button{cursor:pointer}
     Game.difficulty = els.selectDifficulty.value;
     state.difficulty = Game.difficulty;
     Storage.save(state);
+  });
+
+  /* ============================================================
+     ONLINE — Multiplayer via Firebase Realtime Database
+     ============================================================ */
+
+  /* ⚠️  SUBSTITUA PELOS DADOS DO SEU PROJETO FIREBASE  ⚠️
+     Console: https://console.firebase.google.com
+     Projeto → Configurações → Seus apps → Web → firebaseConfig  */
+  const FIREBASE_CONFIG = {
+    apiKey:            "COLE_SUA_API_KEY",
+    authDomain:        "SEU_PROJETO.firebaseapp.com",
+    databaseURL:       "https://SEU_PROJETO-default-rtdb.firebaseio.com",
+    projectId:         "SEU_PROJETO",
+    storageBucket:     "SEU_PROJETO.appspot.com",
+    messagingSenderId: "SEU_SENDER_ID",
+    appId:             "SEU_APP_ID"
+  };
+
+  const Online = {
+    db: null, auth: null, roomRef: null,
+    roomId: null, myMark: null, myUid: null,
+    isHost: false, initialized: false,
+
+    async init(){
+      if(this.initialized) return;
+      if(!window.firebase) throw new Error('Firebase SDK não carregado. Adicione as tags <script> do Firebase.');
+      if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      this.db = firebase.database();
+      this.auth = firebase.auth();
+      const r = await this.auth.signInAnonymously();
+      this.myUid = r.user.uid;
+      this.initialized = true;
+    },
+
+    _genCode(){
+      const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      return Array.from({length:6}, ()=>c[Math.random()*c.length|0]).join('');
+    },
+
+    async createRoom(){
+      await this.init();
+      const code = this._genCode();
+      this.roomId = code; this.myMark = 'X'; this.isHost = true;
+      this.roomRef = this.db.ref(`rooms/${code}`);
+      await this.roomRef.set({
+        hostUid: this.myUid, guestUid: null,
+        board: Array(9).fill(''), currentTurn: 'X',
+        status: 'waiting', winner: null, winCombo: null, isDraw: false,
+        scoreX: 0, scoreO: 0, scoreD: 0,
+        createdAt: firebase.database.ServerValue.TIMESTAMP
+      });
+      this.roomRef.onDisconnect().remove();
+      return code;
+    },
+
+    async joinRoom(code){
+      await this.init();
+      code = code.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+      if(code.length !== 6) throw new Error('Código deve ter 6 caracteres');
+      const ref = this.db.ref(`rooms/${code}`);
+      const snap = await ref.once('value');
+      if(!snap.exists()) throw new Error('Sala não encontrada');
+      const d = snap.val();
+      if(d.status !== 'waiting' || d.guestUid) throw new Error('Sala já está cheia ou em jogo');
+      this.roomId = code; this.myMark = 'O'; this.isHost = false;
+      this.roomRef = ref;
+      await ref.update({ guestUid: this.myUid, status: 'playing' });
+      return code;
+    },
+
+    async makeMove(index){
+      if(!this.roomRef) return;
+      const snap = await this.roomRef.once('value');
+      const d = snap.val();
+      if(!d || d.status !== 'playing' || d.currentTurn !== this.myMark || d.board[index]) return;
+      const board = d.board.slice(); board[index] = this.myMark;
+      const w = winnerOf(board); const full = board.every(v=>v!=='');
+      const upd = { board };
+      if(w){
+        upd.status = 'finished'; upd.winner = w.player; upd.winCombo = w.combo;
+        upd[`score${w.player}`] = (d[`score${w.player}`]||0)+1;
+      } else if(full){
+        upd.status = 'finished'; upd.isDraw = true; upd.scoreD = (d.scoreD||0)+1;
+      } else {
+        upd.currentTurn = this.myMark === 'X' ? 'O' : 'X';
+      }
+      await this.roomRef.update(upd);
+    },
+
+    async resetGame(){
+      if(!this.roomRef || !this.isHost) return;
+      await this.roomRef.update({
+        board: Array(9).fill(''), currentTurn: 'X',
+        status: 'playing', winner: null, winCombo: null, isDraw: false
+      });
+    },
+
+    listen(cb){ if(this.roomRef) this.roomRef.on('value', s=>cb(s.exists()?s.val():null)); },
+    stopListening(){ if(this.roomRef) this.roomRef.off(); },
+
+    async leave(){
+      this.stopListening();
+      if(this.isHost && this.roomRef) await this.roomRef.remove();
+      this.roomRef = null; this.roomId = null;
+      this.myMark = null; this.isHost = false;
+    }
+  };
+
+  /* ===== Online: aplicar estado do Firebase no jogo ===== */
+  function applyOnlineState(d){
+    if(!d) return;
+    Game.board   = d.board ? d.board.slice() : Array(9).fill('');
+    Game.current = d.currentTurn || 'X';
+    Game.finished = d.status === 'finished';
+    Game.winner  = d.winner ? { player: d.winner, combo: d.winCombo||[] } : null;
+    Game.isDraw  = d.isDraw || false;
+    Game.aiThinking = false;
+    state.score.X = d.scoreX||0;
+    state.score.O = d.scoreO||0;
+    state.score.D = d.scoreD||0;
+    render();
+    if(Game.finished){
+      if(Game.winner){
+        const mine = Game.winner.player === Online.myMark;
+        showMessage(mine ? '🎉 Você venceu!' : '😞 Oponente venceu!',
+          Game.winner.player==='X' ? 'win-x' : 'win-o');
+      } else if(Game.isDraw){
+        showMessage('Empate!','draw');
+      }
+    }
+  }
+
+  function enterOnlineGame(d){
+    Game.mode = 'online';
+    buildBoard();
+    applyOnlineState(d);
+    showMessage('');
+  }
+
+  function leaveOnlineGame(){
+    Online.stopListening();
+    Online.leave();
+    Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
+    if(Game.mode === 'online') Game.mode = 'pvp';
+    state.mode = Game.mode;
+    Storage.save(state);
+    Game.reset(Game.mode, 'X');
+    buildBoard(); render(); showMessage('');
+  }
+
+  /* ===== Online: modal e UI ===== */
+  const onlineModal   = document.getElementById('onlineModal');
+  const waitingModal  = document.getElementById('waitingModal');
+  const panelCriar    = document.getElementById('panelCriar');
+  const panelEntrar   = document.getElementById('panelEntrar');
+  const tabCriarBtn   = document.getElementById('tabCriar');
+  const tabEntrarBtn  = document.getElementById('tabEntrar');
+  const codeInput     = document.getElementById('codeInput');
+  const joinError     = document.getElementById('joinError');
+  const waitingCode   = document.getElementById('waitingCode');
+
+  function openOnlineModal(){
+    joinError.textContent = ''; codeInput.value = '';
+    switchOnlineTab('criar');
+    onlineModal.hidden = false;
+  }
+  function closeOnlineModal(){ onlineModal.hidden = true; }
+
+  function switchOnlineTab(tab){
+    const isCriar = tab === 'criar';
+    tabCriarBtn.classList.toggle('active', isCriar);
+    tabEntrarBtn.classList.toggle('active', !isCriar);
+    tabCriarBtn.setAttribute('aria-selected', isCriar);
+    tabEntrarBtn.setAttribute('aria-selected', !isCriar);
+    panelCriar.hidden = !isCriar;
+    panelEntrar.hidden = isCriar;
+    if(!isCriar) setTimeout(()=>codeInput.focus(), 50);
+  }
+
+  tabCriarBtn.addEventListener('click', ()=>switchOnlineTab('criar'));
+  tabEntrarBtn.addEventListener('click', ()=>switchOnlineTab('entrar'));
+  document.getElementById('cancelOnlineBtn').addEventListener('click', closeOnlineModal);
+  document.getElementById('cancelOnlineBtn2').addEventListener('click', closeOnlineModal);
+
+  document.getElementById('createRoomBtn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('createRoomBtn');
+    btn.disabled = true; btn.textContent = 'Criando…';
+    try{
+      const code = await Online.createRoom();
+      closeOnlineModal();
+      waitingCode.textContent = code;
+      waitingModal.hidden = false;
+      Online.listen(d=>{
+        if(!d){ waitingModal.hidden = true; return; }
+        if(d.status === 'playing' && d.guestUid){
+          waitingModal.hidden = true;
+          enterOnlineGame(d);
+          // Continua ouvindo mudanças de estado
+        } else if(d.status !== 'waiting'){
+          applyOnlineState(d);
+        }
+      });
+    } catch(e){
+      alert('Erro: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Criar sala';
+    }
+  });
+
+  document.getElementById('joinRoomBtn').addEventListener('click', async ()=>{
+    const code = codeInput.value.trim();
+    if(code.length < 6){ joinError.textContent = 'Digite os 6 caracteres do código.'; return; }
+    joinError.textContent = '';
+    const btn = document.getElementById('joinRoomBtn');
+    btn.disabled = true; btn.textContent = 'Entrando…';
+    try{
+      await Online.joinRoom(code);
+      closeOnlineModal();
+      Online.listen(d=>{
+        if(!d){
+          leaveOnlineGame();
+          alert('O host saiu da sala. Jogo encerrado.');
+          return;
+        }
+        applyOnlineState(d);
+      });
+      const snap = await Online.roomRef.once('value');
+      enterOnlineGame(snap.val());
+    } catch(e){
+      joinError.textContent = e.message;
+    } finally {
+      btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  });
+
+  codeInput.addEventListener('input', ()=>{
+    codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  });
+
+  document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
+    const code = waitingCode.textContent;
+    const btn = document.getElementById('copyCodeBtn');
+    navigator.clipboard.writeText(code)
+      .then(()=>{ btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='📋 Copiar código',2000); })
+      .catch(()=>prompt('Copie o código:',code));
+  });
+
+  document.getElementById('cancelWaitBtn').addEventListener('click', async ()=>{
+    Online.stopListening();
+    await Online.leave();
+    waitingModal.hidden = true;
+  });
+
+  document.getElementById('drawerOnline').addEventListener('click', ()=>{
+    closeDrawer(); openOnlineModal();
   });
 
   /* ===== Inicialização ===== */
@@ -982,6 +1342,11 @@ button{cursor:pointer}
   init();
 })();
 </script>
+
+<!-- Firebase SDK (compat) — necessário para modo Online -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
 <!-- PWA — Registro do Service Worker -->
 <script>
