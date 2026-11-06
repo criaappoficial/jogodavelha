@@ -286,6 +286,59 @@ button{cursor:pointer}
 .my-role-pill .mark.x{color:var(--x-color)}
 .my-role-pill .mark.o{color:var(--o-color)}
 
+/* ===== CONFETTI CANVAS & RESULT MODAL ===== */
+#confettiCanvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:110;
+}
+.result-modal{
+  text-align:center;align-items:center;
+  background:radial-gradient(circle at top,var(--surface-2) 0%,var(--surface) 75%);
+  border:2px solid var(--border);
+  padding:1.75rem 1.5rem;
+}
+.result-modal.win-x{border-color:var(--x-color);box-shadow:0 0 40px rgba(56,189,248,.28)}
+.result-modal.win-o{border-color:var(--o-color);box-shadow:0 0 40px rgba(244,114,182,.28)}
+.result-modal.draw{border-color:var(--draw-color);box-shadow:0 0 40px rgba(250,204,21,.22)}
+.result-trophy{
+  font-size:clamp(3.2rem,12vw,4.5rem);line-height:1;
+  filter:drop-shadow(0 6px 16px rgba(0,0,0,.45));
+  animation:trophyBounce 900ms cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes trophyBounce{
+  0%{transform:scale(0) rotate(-18deg);opacity:0}
+  60%{transform:scale(1.18) rotate(6deg);opacity:1}
+  100%{transform:scale(1) rotate(0deg);opacity:1}
+}
+.result-title{
+  font-size:clamp(1.35rem,5vw,1.8rem);font-weight:800;margin:.25rem 0 0;
+  letter-spacing:.02em;
+}
+.result-title.win-x{color:var(--x-color)}
+.result-title.win-o{color:var(--o-color)}
+.result-title.draw{color:var(--draw-color)}
+.result-sub{
+  font-size:.95rem;color:var(--text-muted);margin:0;
+}
+.result-score-mini{
+  display:flex;gap:.75rem;justify-content:center;width:100%;
+  background:rgba(15,23,42,.55);padding:.65rem;border-radius:var(--radius-sm);
+  border:1px solid var(--border);margin:.25rem 0;
+}
+.result-score-mini div{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:.1rem;
+  font-size:.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;
+}
+.result-score-mini strong{font-size:1.15rem;font-weight:800}
+.result-score-mini .sx{color:var(--x-color)}
+.result-score-mini .sd{color:var(--draw-color)}
+.result-score-mini .so{color:var(--o-color)}
+.btn-lg{
+  width:100%;padding:.95rem 1.25rem;font-size:1.05rem;font-weight:800;
+  letter-spacing:.03em;box-shadow:0 6px 20px rgba(99,102,241,.4);
+}
+.icon-btn.muted{color:#f87171;border-color:rgba(248,113,113,.35)}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -309,12 +362,21 @@ button{cursor:pointer}
 </head>
 <body>
 <a class="skip-link" href="#main">Pular para o conteúdo principal</a>
+<canvas id="confettiCanvas" aria-hidden="true"></canvas>
 
 <div class="app" id="app">
   <header class="app-header">
     <h1 class="app-title">JOGO DA VELHA</h1>
     <div class="header-info">
       <span class="badge" id="modeBadge" aria-live="polite">2 Jogadores</span>
+      <button class="icon-btn" id="soundToggleBtn" aria-label="Alternar som" title="Som ativado">
+        <svg id="soundIconOn" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+        <svg id="soundIconOff" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" hidden>
+          <path fill="currentColor" d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="settingsBtn" aria-label="Abrir configurações" title="Configurações">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
           <path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
@@ -411,6 +473,22 @@ button{cursor:pointer}
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"/></svg>
     Zerar placar
   </button>
+</div>
+
+<!-- ===== MODAL RESULTADO / JOGAR DE NOVO ===== -->
+<div class="modal-overlay" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
+  <div class="modal result-modal" id="resultModalCard">
+    <div class="result-trophy" id="resultTrophy" aria-hidden="true">🏆</div>
+    <h2 class="result-title" id="resultTitle">Vitória!</h2>
+    <p class="result-sub" id="resultSub">Que partida incrível! Quer jogar mais uma?</p>
+    <div class="result-score-mini" aria-label="Placar atual">
+      <div><span>X</span><strong class="sx" id="resScoreX">0</strong></div>
+      <div><span>Empates</span><strong class="sd" id="resScoreD">0</strong></div>
+      <div><span>O</span><strong class="so" id="resScoreO">0</strong></div>
+    </div>
+    <button class="btn btn-primary btn-lg" id="playAgainBtn">🔄 Jogar de novo</button>
+    <button class="btn btn-ghost" id="closeResultBtn" style="width:100%">Ver tabuleiro</button>
+  </div>
 </div>
 
 <!-- ===== MODAL ONLINE ===== -->
@@ -549,6 +627,205 @@ button{cursor:pointer}
       return s;
     }
   };
+
+  /* ============================================================
+     SFX — Efeitos sonoros sintetizados (Web Audio API)
+     ============================================================ */
+  const SFX = {
+    ctx: null,
+    muted: localStorage.getItem('jogoDaVelha.muted') === '1',
+
+    _ensure(){
+      if(this.muted) return null;
+      try{
+        if(!this.ctx){
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if(!AC) return null;
+          this.ctx = new AC();
+        }
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        return this.ctx;
+      }catch(e){ return null; }
+    },
+
+    _tone(freq, type, duration, delay = 0, vol = 0.18, slideTo = null){
+      const ctx = this._ensure();
+      if(!ctx) return;
+      const now = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      if(slideTo){
+        osc.frequency.exponentialRampToValueAtTime(slideTo, now + duration);
+      }
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(vol, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    },
+
+    moveX(){
+      // Pop cristalino ascendente para X
+      this._tone(440, 'sine', 0.11, 0, 0.22, 660);
+      this._tone(880, 'triangle', 0.08, 0.03, 0.12);
+    },
+
+    moveO(){
+      // Pop macio harmônico para O
+      this._tone(360, 'sine', 0.12, 0, 0.22, 520);
+      this._tone(720, 'triangle', 0.09, 0.03, 0.12);
+    },
+
+    click(){
+      this._tone(620, 'sine', 0.06, 0, 0.12, 780);
+    },
+
+    start(){
+      // Whoosh/chime de início de partida
+      this._tone(392, 'triangle', 0.1, 0, 0.14);
+      this._tone(523.25, 'triangle', 0.14, 0.07, 0.16);
+    },
+
+    win(){
+      // Fanfarra alegre de vitória (C5 - E5 - G5 - C6 + brilho)
+      const notes = [
+        [523.25, 0.00, 0.14],
+        [659.25, 0.11, 0.14],
+        [783.99, 0.22, 0.16],
+        [1046.50, 0.34, 0.42]
+      ];
+      notes.forEach(([f, d, dur]) => {
+        this._tone(f, 'triangle', dur, d, 0.22);
+        this._tone(f * 1.5, 'sine', dur * 0.8, d + 0.01, 0.08);
+      });
+    },
+
+    lose(){
+      // Descida suave quando perde
+      this._tone(440, 'sawtooth', 0.18, 0.00, 0.10, 392);
+      this._tone(392, 'sawtooth', 0.18, 0.16, 0.10, 349.23);
+      this._tone(330, 'triangle', 0.35, 0.32, 0.14, 261.63);
+    },
+
+    draw(){
+      // Dois tons neutros de empate
+      this._tone(440, 'triangle', 0.14, 0, 0.15);
+      this._tone(392, 'triangle', 0.24, 0.14, 0.15);
+    },
+
+    toggleMute(){
+      this.muted = !this.muted;
+      try{ localStorage.setItem('jogoDaVelha.muted', this.muted ? '1' : '0'); }catch(e){}
+      if(!this.muted) this.click();
+      return this.muted;
+    }
+  };
+
+  /* ============================================================
+     CONFETTI — Chuva de confetes em Canvas 2D
+     ============================================================ */
+  const Confetti = {
+    canvas: document.getElementById('confettiCanvas'),
+    ctx: null,
+    particles: [],
+    animId: null,
+    colors: ['#38bdf8', '#f472b6', '#facc15', '#6366f1', '#4ade80', '#fb923c', '#ffffff'],
+
+    _resize(){
+      if(!this.canvas) return;
+      this.canvas.width = window.innerWidth;
+      this.canvas.height = window.innerHeight;
+    },
+
+    launch(){
+      if(!this.canvas) return;
+      if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      this.ctx = this.canvas.getContext('2d');
+      this._resize();
+      const W = this.canvas.width;
+      const H = this.canvas.height;
+      const count = 130;
+
+      for(let i = 0; i < count; i++){
+        const fromLeft = i % 2 === 0;
+        const angle = fromLeft
+          ? (-Math.PI / 3) + (Math.random() * 0.45 - 0.22)
+          : (-2 * Math.PI / 3) + (Math.random() * 0.45 - 0.22);
+        const speed = 9 + Math.random() * 13;
+        this.particles.push({
+          x: fromLeft ? W * 0.15 : W * 0.85,
+          y: H * 0.55,
+          vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 4,
+          vy: Math.sin(angle) * speed - Math.random() * 4,
+          w: 7 + Math.random() * 6,
+          h: 4 + Math.random() * 5,
+          color: this.colors[i % this.colors.length],
+          rot: Math.random() * Math.PI * 2,
+          vrot: (Math.random() - 0.5) * 0.25,
+          tilt: Math.random() * 10,
+          vtilt: 0.08 + Math.random() * 0.08,
+          alpha: 1,
+          decay: 0.005 + Math.random() * 0.006
+        });
+      }
+
+      if(!this.animId) this._loop();
+    },
+
+    _loop(){
+      const ctx = this.ctx;
+      const W = this.canvas.width;
+      const H = this.canvas.height;
+      ctx.clearRect(0, 0, W, H);
+
+      for(let i = this.particles.length - 1; i >= 0; i--){
+        const p = this.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.32; // gravidade
+        p.vx *= 0.99; // resistência do ar
+        p.rot += p.vrot;
+        p.tilt += p.vtilt;
+        p.alpha -= p.decay;
+
+        if(p.alpha <= 0 || p.y > H + 40){
+          this.particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.translate(p.x + Math.sin(p.tilt) * 4, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+
+      if(this.particles.length > 0){
+        this.animId = requestAnimationFrame(() => this._loop());
+      } else {
+        ctx.clearRect(0, 0, W, H);
+        this.animId = null;
+      }
+    },
+
+    stop(){
+      this.particles = [];
+      if(this.animId){
+        cancelAnimationFrame(this.animId);
+        this.animId = null;
+      }
+      if(this.ctx && this.canvas){
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+    }
+  };
+  window.addEventListener('resize', () => Confetti._resize());
 
   /* ============================================================
      AI — Minimax com poda alfa-beta + modo fácil
@@ -822,19 +1099,100 @@ button{cursor:pointer}
     Storage.save(state);
   }
 
+  /* ===== Popup Resultado / Jogar de novo ===== */
+  const resultModal     = document.getElementById('resultModal');
+  const resultModalCard = document.getElementById('resultModalCard');
+  const resultTrophy    = document.getElementById('resultTrophy');
+  const resultTitle     = document.getElementById('resultTitle');
+  const resultSub       = document.getElementById('resultSub');
+  const resScoreX       = document.getElementById('resScoreX');
+  const resScoreD       = document.getElementById('resScoreD');
+  const resScoreO       = document.getElementById('resScoreO');
+  const playAgainBtn    = document.getElementById('playAgainBtn');
+  const closeResultBtn  = document.getElementById('closeResultBtn');
+  let resultTimer = null;
+
+  function openResultModal({ trophy, title, sub, theme }){
+    if(resultTimer) clearTimeout(resultTimer);
+    resultTrophy.textContent = trophy;
+    resultTitle.textContent = title;
+    resultSub.textContent = sub;
+    resultModalCard.className = 'modal result-modal ' + (theme || '');
+    resultTitle.className = 'result-title ' + (theme || '');
+    resScoreX.textContent = state.score.X;
+    resScoreD.textContent = state.score.D;
+    resScoreO.textContent = state.score.O;
+    resultModal.hidden = false;
+    setTimeout(() => playAgainBtn.focus(), 80);
+  }
+
+  function closeResultModal(){
+    if(resultTimer) { clearTimeout(resultTimer); resultTimer = null; }
+    resultModal.hidden = true;
+    Confetti.stop();
+  }
+
+  playAgainBtn.addEventListener('click', () => {
+    SFX.click();
+    closeResultModal();
+    if(Game.mode === 'online'){
+      Online.resetGame();
+    } else {
+      startNewGame();
+    }
+  });
+
+  closeResultBtn.addEventListener('click', () => {
+    SFX.click();
+    closeResultModal();
+  });
+
+  resultModal.addEventListener('click', (e) => {
+    if(e.target === resultModal) closeResultModal();
+  });
+
   /* ===== Fim de partida ===== */
   function finish(result){
     if(result.type === 'win'){
       state.score[result.player] = (state.score[result.player] || 0) + 1;
       persistScore();
-      showMessage(
-        result.player === 'X' ? 'Jogador X venceu!' : 'Jogador O venceu!',
-        result.player === 'X' ? 'win-x' : 'win-o'
-      );
+      const isPlayerWin = !(Game.mode === 'pve' && result.player === 'O');
+      const titleText = Game.mode === 'pve'
+        ? (result.player === 'X' ? 'Você venceu!' : 'A IA venceu!')
+        : `Jogador ${result.player} venceu!`;
+      const subText = isPlayerWin
+        ? 'Mandou muito bem! Bora mais uma partida?'
+        : 'Não foi dessa vez! Quer tentar a revanche?';
+      showMessage(titleText, result.player === 'X' ? 'win-x' : 'win-o');
+
+      if(isPlayerWin){
+        SFX.win();
+        Confetti.launch();
+      } else {
+        SFX.lose();
+      }
+
+      resultTimer = setTimeout(() => {
+        openResultModal({
+          trophy: isPlayerWin ? '🏆' : '🤖',
+          title: titleText,
+          sub: subText,
+          theme: result.player === 'X' ? 'win-x' : 'win-o'
+        });
+      }, 650);
     } else if(result.type === 'draw'){
       state.score.D = (state.score.D || 0) + 1;
       persistScore();
       showMessage('Empate!', 'draw');
+      SFX.draw();
+      resultTimer = setTimeout(() => {
+        openResultModal({
+          trophy: '🤝',
+          title: 'Deu Velha!',
+          sub: 'Ninguém cedeu! Vamos desempatar agora?',
+          theme: 'draw'
+        });
+      }, 550);
     }
   }
 
@@ -855,7 +1213,9 @@ button{cursor:pointer}
     if(Game.board[index]) return;
 
     showMessage('');
+    const playedMark = Game.current;
     const result = Game.play(index);
+    if(playedMark === 'X') SFX.moveX(); else SFX.moveO();
     render();
 
     if(result && (result.type === 'win' || result.type === 'draw')){
@@ -883,6 +1243,7 @@ button{cursor:pointer}
       if(move < 0 || Game.finished) { render(); return; }
 
       const result = Game.play(move);
+      SFX.moveO();
       render();
       if(result && (result.type === 'win' || result.type === 'draw')){
         finish(result);
@@ -893,12 +1254,13 @@ button{cursor:pointer}
 
   /* ===== Controles ===== */
   function startNewGame(){
+    closeResultModal();
     if(Game.mode === 'online'){
-      if(Online.isHost) Online.resetGame();
-      else showMessage('Aguarde o host iniciar um novo jogo.', '');
+      Online.resetGame();
       return;
     }
     Game.reset(Game.mode, Game.firstPlayer);
+    SFX.start();
     showMessage('');
     render();
     if(Game.mode === 'pve' && Game.current === 'O'){
@@ -1096,7 +1458,7 @@ button{cursor:pointer}
     },
 
     async resetGame(){
-      if(!this.roomRef || !this.isHost) return;
+      if(!this.roomRef) return;
       await this.roomRef.update({
         board: Array(9).fill(''), currentTurn: 'X',
         status: 'playing', winner: null, winCombo: null, isDraw: false
@@ -1115,32 +1477,88 @@ button{cursor:pointer}
   };
 
   /* ===== Online: aplicar estado do Firebase no jogo ===== */
+  let lastOnlineBoardStr = '';
+  let lastOnlineStatus = '';
+
   function applyOnlineState(d){
     if(!d) return;
-    Game.board   = d.board ? d.board.slice() : Array(9).fill('');
-    Game.current = d.currentTurn || 'X';
+    const prevBoardStr = lastOnlineBoardStr;
+    const prevStatus = lastOnlineStatus;
+    const newBoard = d.board ? d.board.slice() : Array(9).fill('');
+    const newBoardStr = newBoard.join(',');
+
+    // Detecta nova jogada para tocar o som
+    if(prevBoardStr && prevBoardStr !== newBoardStr){
+      const prevArr = prevBoardStr.split(',');
+      for(let i = 0; i < 9; i++){
+        if(!prevArr[i] && newBoard[i]){
+          if(newBoard[i] === 'X') SFX.moveX(); else SFX.moveO();
+          break;
+        }
+      }
+    }
+
+    lastOnlineBoardStr = newBoardStr;
+    lastOnlineStatus = d.status || '';
+
+    Game.board    = newBoard;
+    Game.current  = d.currentTurn || 'X';
     Game.finished = d.status === 'finished';
-    Game.winner  = d.winner ? { player: d.winner, combo: d.winCombo||[] } : null;
-    Game.isDraw  = d.isDraw || false;
+    Game.winner   = d.winner ? { player: d.winner, combo: d.winCombo||[] } : null;
+    Game.isDraw   = d.isDraw || false;
     Game.aiThinking = false;
     state.score.X = d.scoreX||0;
     state.score.O = d.scoreO||0;
     state.score.D = d.scoreD||0;
+
+    if(d.status === 'playing' && prevStatus === 'finished'){
+      closeResultModal();
+      showMessage('');
+      SFX.start();
+    }
+
     render();
-    if(Game.finished){
+
+    if(Game.finished && prevStatus !== 'finished'){
       if(Game.winner){
         const mine = Game.winner.player === Online.myMark;
-        showMessage(mine ? '🎉 Você venceu!' : '😞 Oponente venceu!',
-          Game.winner.player==='X' ? 'win-x' : 'win-o');
+        const msg = mine ? '🎉 Você venceu!' : '😞 Oponente venceu!';
+        showMessage(msg, Game.winner.player==='X' ? 'win-x' : 'win-o');
+        if(mine){
+          SFX.win();
+          Confetti.launch();
+        } else {
+          SFX.lose();
+        }
+        resultTimer = setTimeout(() => {
+          openResultModal({
+            trophy: mine ? '🏆' : '😤',
+            title: mine ? 'Você venceu!' : 'Oponente venceu!',
+            sub: mine ? 'Jogada de mestre! Bora mais uma?' : 'Quase lá! Pedir revanche agora?',
+            theme: Game.winner.player === 'X' ? 'win-x' : 'win-o'
+          });
+        }, 650);
       } else if(Game.isDraw){
         showMessage('Empate!','draw');
+        SFX.draw();
+        resultTimer = setTimeout(() => {
+          openResultModal({
+            trophy: '🤝',
+            title: 'Deu Velha!',
+            sub: 'Partida disputada! Vamos desempatar?',
+            theme: 'draw'
+          });
+        }, 550);
       }
     }
   }
 
   function enterOnlineGame(d){
     Game.mode = 'online';
+    lastOnlineBoardStr = '';
+    lastOnlineStatus = '';
     buildBoard();
+    SFX.start();
     applyOnlineState(d);
     showMessage('');
   }
@@ -1260,8 +1678,28 @@ button{cursor:pointer}
   });
 
   document.getElementById('drawerOnline').addEventListener('click', ()=>{
+    SFX.click();
     closeDrawer(); openOnlineModal();
   });
+
+  /* ===== Botão de Som (Mute / Unmute) ===== */
+  const soundToggleBtn = document.getElementById('soundToggleBtn');
+  const soundIconOn    = document.getElementById('soundIconOn');
+  const soundIconOff   = document.getElementById('soundIconOff');
+
+  function updateSoundUI(){
+    const m = SFX.muted;
+    soundIconOn.hidden  = m;
+    soundIconOff.hidden = !m;
+    soundToggleBtn.classList.toggle('muted', m);
+    soundToggleBtn.title = m ? 'Som desativado' : 'Som ativado';
+    soundToggleBtn.setAttribute('aria-label', m ? 'Ativar som' : 'Desativar som');
+  }
+  soundToggleBtn.addEventListener('click', () => {
+    SFX.toggleMute();
+    updateSoundUI();
+  });
+  updateSoundUI();
 
   /* ===== Inicialização ===== */
   function init(){
@@ -1286,6 +1724,7 @@ button{cursor:pointer}
   const navMenu = document.getElementById('navMenu');
 
   function openDrawer(){
+    SFX.click();
     drawer.classList.add('open');
     drawerOverlay.classList.add('open');
     drawer.setAttribute('aria-hidden','false');
@@ -1313,7 +1752,10 @@ button{cursor:pointer}
   drawerOverlay.addEventListener('click', closeDrawer);
 
   document.addEventListener('keydown', (e)=>{
-    if(e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+    if(e.key === 'Escape'){
+      if(drawer.classList.contains('open')) closeDrawer();
+      if(!resultModal.hidden) closeResultModal();
+    }
   });
 
   // Swipe down para fechar o drawer
@@ -1326,13 +1768,13 @@ button{cursor:pointer}
   // Botões do bottom nav
   document.getElementById('navNewGame').addEventListener('click', startNewGame);
   document.getElementById('navRestart').addEventListener('click', restartMatch);
-  document.getElementById('navSettings').addEventListener('click', openSettings);
+  document.getElementById('navSettings').addEventListener('click', ()=>{ SFX.click(); openSettings(); });
 
   // Botões do drawer
   document.getElementById('drawerNewGame').addEventListener('click', ()=>{ closeDrawer(); startNewGame(); });
   document.getElementById('drawerRestart').addEventListener('click', ()=>{ closeDrawer(); restartMatch(); });
-  document.getElementById('drawerSwitchMode').addEventListener('click', ()=>{ closeDrawer(); switchMode(); });
-  document.getElementById('drawerSettings').addEventListener('click', ()=>{ closeDrawer(); openSettings(); });
+  document.getElementById('drawerSwitchMode').addEventListener('click', ()=>{ SFX.click(); closeDrawer(); switchMode(); });
+  document.getElementById('drawerSettings').addEventListener('click', ()=>{ SFX.click(); closeDrawer(); openSettings(); });
   document.getElementById('drawerResetScore').addEventListener('click', ()=>{
     closeDrawer();
     if(confirm('Tem certeza que deseja zerar o placar?')){
