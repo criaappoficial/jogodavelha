@@ -339,6 +339,37 @@ button{cursor:pointer}
 }
 .icon-btn.muted{color:#f87171;border-color:rgba(248,113,113,.35)}
 
+/* ===== PWA INSTALL BANNER ===== */
+.install-banner{
+  width:100%;max-width:720px;
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+  background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(56,189,248,.16));
+  border:1px solid var(--primary);border-radius:var(--radius);
+  padding:.75rem 1rem;box-shadow:var(--shadow);animation:pop 240ms ease;
+}
+.install-banner[hidden]{display:none}
+.install-banner-info{display:flex;align-items:center;gap:.65rem;min-width:0}
+.install-banner-icon{
+  width:38px;height:38px;border-radius:10px;background:var(--surface);
+  display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;
+  border:1px solid var(--border);
+}
+.install-banner-text{display:flex;flex-direction:column;gap:.1rem;min-width:0}
+.install-banner-text strong{font-size:.88rem;color:var(--text)}
+.install-banner-text span{font-size:.75rem;color:var(--text-muted)}
+.install-banner-actions{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+.btn-sm{padding:.5rem .85rem;font-size:.8rem;min-height:36px;border-radius:8px}
+.ios-steps{
+  display:flex;flex-direction:column;gap:.65rem;text-align:left;
+  background:var(--surface-2);padding:1rem;border-radius:var(--radius-sm);
+  border:1px solid var(--border);font-size:.88rem;color:var(--text);
+}
+.ios-steps div{display:flex;align-items:center;gap:.6rem}
+.ios-step-num{
+  width:24px;height:24px;border-radius:50%;background:var(--primary);color:#fff;
+  font-weight:800;font-size:.75rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -385,6 +416,21 @@ button{cursor:pointer}
       </button>
     </div>
   </header>
+
+  <!-- Banner de instalação do App (PWA) -->
+  <div class="install-banner" id="installBanner" hidden>
+    <div class="install-banner-info">
+      <div class="install-banner-icon" aria-hidden="true">📲</div>
+      <div class="install-banner-text">
+        <strong>Instalar Jogo da Velha</strong>
+        <span>Jogue em tela cheia direto do celular</span>
+      </div>
+    </div>
+    <div class="install-banner-actions">
+      <button class="btn btn-primary btn-sm" id="installBannerBtn">Instalar</button>
+      <button class="icon-btn" id="dismissInstallBtn" aria-label="Fechar aviso" style="width:32px;height:32px">✕</button>
+    </div>
+  </div>
 
   <section class="scoreboard" aria-label="Placar">
     <div class="score score-x" id="scoreX">
@@ -473,6 +519,27 @@ button{cursor:pointer}
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"/></svg>
     Zerar placar
   </button>
+
+  <button class="drawer-item primary" id="drawerInstall" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18 15v3H6v-3H4v3c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-3h-2zm-1-4-1.41-1.41L13 12.17V4h-2v8.17L8.41 9.59 7 11l5 5 5-5z"/></svg>
+    Instalar no celular
+  </button>
+</div>
+
+<!-- ===== MODAL INSTRUÇÕES iOS ===== -->
+<div class="modal-overlay" id="iosInstallModal" role="dialog" aria-modal="true" aria-labelledby="iosInstallTitle" hidden>
+  <div class="modal">
+    <h2 id="iosInstallTitle">📲 Instalar no iPhone / iPad</h2>
+    <p style="font-size:.88rem;color:var(--text-muted);margin:0">
+      Para instalar o jogo na tela inicial do seu iPhone:
+    </p>
+    <div class="ios-steps">
+      <div><span class="ios-step-num">1</span><span>Toque no botão <strong>Compartilhar</strong> (ícone de quadrado com seta ⬆️) no Safari.</span></div>
+      <div><span class="ios-step-num">2</span><span>Role para baixo e toque em <strong>Adicionar à Tela de Início</strong>.</span></div>
+      <div><span class="ios-step-num">3</span><span>Toque em <strong>Adicionar</strong> no canto superior direito.</span></div>
+    </div>
+    <button class="btn btn-primary" id="closeIosInstallBtn" style="width:100%">Entendi</button>
+  </div>
 </div>
 
 <!-- ===== MODAL RESULTADO / JOGAR DE NOVO ===== -->
@@ -1788,7 +1855,81 @@ button{cursor:pointer}
     }
   });
 
+  /* ===== PWA INSTALL PROMPT (Android / Desktop / iOS) ===== */
+  let deferredInstallPrompt = null;
+  const installBanner     = document.getElementById('installBanner');
+  const installBannerBtn  = document.getElementById('installBannerBtn');
+  const dismissInstallBtn = document.getElementById('dismissInstallBtn');
+  const drawerInstallBtn  = document.getElementById('drawerInstall');
+  const iosInstallModal   = document.getElementById('iosInstallModal');
+  const closeIosInstallBtn = document.getElementById('closeIosInstallBtn');
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const bannerDismissed = sessionStorage.getItem('jogoDaVelha.installDismissed') === '1';
+
+  if(!isStandalone && isIOS){
+    drawerInstallBtn.hidden = false;
+    if(!bannerDismissed) installBanner.hidden = false;
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if(!isStandalone){
+      drawerInstallBtn.hidden = false;
+      if(!bannerDismissed) installBanner.hidden = false;
+    }
+  });
+
+  async function triggerInstall(){
+    SFX.click();
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if(outcome === 'accepted'){
+        installBanner.hidden = true;
+        drawerInstallBtn.hidden = true;
+      }
+      deferredInstallPrompt = null;
+    } else if(isIOS){
+      iosInstallModal.hidden = false;
+    }
+  }
+
+  installBannerBtn.addEventListener('click', triggerInstall);
+  drawerInstallBtn.addEventListener('click', () => {
+    closeDrawer();
+    triggerInstall();
+  });
+
+  dismissInstallBtn.addEventListener('click', () => {
+    SFX.click();
+    installBanner.hidden = true;
+    try{ sessionStorage.setItem('jogoDaVelha.installDismissed', '1'); }catch(e){}
+  });
+
+  closeIosInstallBtn.addEventListener('click', () => {
+    SFX.click();
+    iosInstallModal.hidden = true;
+  });
+  iosInstallModal.addEventListener('click', (e) => {
+    if(e.target === iosInstallModal) iosInstallModal.hidden = true;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installBanner.hidden = true;
+    drawerInstallBtn.hidden = true;
+    deferredInstallPrompt = null;
+  });
+
   init();
+
+  // Atalhos de URL do PWA (?online=1)
+  try{
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('online') === '1') openOnlineModal();
+  }catch(e){}
 })();
 </script>
 
