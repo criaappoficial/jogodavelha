@@ -1003,33 +1003,40 @@ button{cursor:pointer}
   /* ============================================================
      ONLINE — Multiplayer via Firebase Realtime Database
      ============================================================ */
-
-  /* ⚠️  SUBSTITUA PELOS DADOS DO SEU PROJETO FIREBASE  ⚠️
-     Console: https://console.firebase.google.com
-     Projeto → Configurações → Seus apps → Web → firebaseConfig  */
   const FIREBASE_CONFIG = {
-    apiKey:            "COLE_SUA_API_KEY",
-    authDomain:        "SEU_PROJETO.firebaseapp.com",
-    databaseURL:       "https://SEU_PROJETO-default-rtdb.firebaseio.com",
-    projectId:         "SEU_PROJETO",
-    storageBucket:     "SEU_PROJETO.appspot.com",
-    messagingSenderId: "SEU_SENDER_ID",
-    appId:             "SEU_APP_ID"
+    apiKey:            "AIzaSyD31QRcwSMxbj6rUTx-OnJbl-OYTRbeJCU",
+    authDomain:        "jogodavelha-online-app.firebaseapp.com",
+    databaseURL:       "https://jogodavelha-online-app-default-rtdb.firebaseio.com",
+    projectId:         "jogodavelha-online-app",
+    storageBucket:     "jogodavelha-online-app.firebasestorage.app",
+    messagingSenderId: "753405697553",
+    appId:             "1:753405697553:web:03ca4379d0f0f019cb1bb0"
   };
 
+  function getOrCreatePlayerId(){
+    try{
+      let id = localStorage.getItem('jogoDaVelha.playerId');
+      if(!id){
+        id = 'p_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+        localStorage.setItem('jogoDaVelha.playerId', id);
+      }
+      return id;
+    }catch(e){
+      return 'p_' + Math.random().toString(36).slice(2, 10);
+    }
+  }
+
   const Online = {
-    db: null, auth: null, roomRef: null,
+    db: null, roomRef: null,
     roomId: null, myMark: null, myUid: null,
     isHost: false, initialized: false,
 
     async init(){
       if(this.initialized) return;
-      if(!window.firebase) throw new Error('Firebase SDK não carregado. Adicione as tags <script> do Firebase.');
+      if(!window.firebase) throw new Error('Firebase SDK não carregado.');
       if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
       this.db = firebase.database();
-      this.auth = firebase.auth();
-      const r = await this.auth.signInAnonymously();
-      this.myUid = r.user.uid;
+      this.myUid = getOrCreatePlayerId();
       this.initialized = true;
     },
 
@@ -1345,7 +1352,6 @@ button{cursor:pointer}
 
 <!-- Firebase SDK (compat) — necessário para modo Online -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
 <!-- PWA — Registro do Service Worker -->
