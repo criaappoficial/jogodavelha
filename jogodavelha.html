@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0f172a" />
+<meta name="description" content="Jogo da Velha moderno com IA Minimax e multiplayer local." />
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Velha" />
+<meta name="application-name" content="Jogo da Velha" />
+<meta name="msapplication-TileColor" content="#0f172a" />
+<meta name="msapplication-TileImage" content="icons/icon-144.png" />
+
+<!-- Ícones Apple -->
+<link rel="apple-touch-icon" sizes="72x72"  href="icons/icon-72.png" />
+<link rel="apple-touch-icon" sizes="96x96"  href="icons/icon-96.png" />
+<link rel="apple-touch-icon" sizes="128x128" href="icons/icon-128.png" />
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png" />
+<link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png" />
+
+<!-- Ícone genérico (favicon) -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-72.png" />
+
+<title>Jogo da Velha</title>
+<style>
+/* ===== VARIÁVEIS ===== */
+:root{
+  --bg:#0f172a; --surface:#1e293b; --surface-2:#334155;
+  --text:#f1f5f9; --text-muted:#94a3b8;
+  --primary:#6366f1; --primary-hover:#818cf8;
+  --x-color:#38bdf8; --o-color:#f472b6; --draw-color:#facc15;
+  --border:#334155; --radius:14px; --radius-sm:10px;
+  --shadow:0 10px 30px rgba(0,0,0,.35); --transition:200ms ease;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+
+/* ===== RESET ===== */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font);
+  background:radial-gradient(circle at top,#1e293b 0%,var(--bg) 60%);
+  color:var(--text);
+  min-height:100dvh;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+button,select{font-family:inherit}
+button{cursor:pointer}
+
+.skip-link{
+  position:absolute;left:-999px;top:0;background:var(--primary);color:#fff;
+  padding:8px 16px;border-radius:0 0 8px 0;z-index:1000;
+}
+.skip-link:focus{left:0}
+
+/* ===== APP LAYOUT ===== */
+.app{
+  display:flex;flex-direction:column;align-items:center;gap:1rem;
+  width:100%;max-width:1100px;margin:0 auto;
+  padding:clamp(1rem,2.5vw,2rem);
+  padding-top:max(1rem,env(safe-area-inset-top));
+  padding-bottom:calc(max(1rem,env(safe-area-inset-bottom)) + 5rem);
+  min-height:100dvh;
+}
+
+/* ===== HEADER ===== */
+.app-header{
+  width:100%;display:flex;align-items:center;justify-content:space-between;gap:1rem;
+}
+.app-title{
+  font-size:clamp(1.1rem,3.5vw,1.6rem);letter-spacing:.08em;font-weight:800;margin:0;
+  background:linear-gradient(90deg,var(--x-color),var(--o-color));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.header-info{display:flex;align-items:center;gap:.6rem}
+.badge{
+  font-size:clamp(.65rem,2.5vw,.8rem);background:var(--surface-2);color:var(--text-muted);
+  padding:.35rem .7rem;border-radius:999px;font-weight:600;white-space:nowrap;
+}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:40px;height:40px;background:var(--surface);color:var(--text-muted);
+  border:1px solid var(--border);border-radius:var(--radius-sm);transition:var(--transition);
+}
+.icon-btn:hover,.icon-btn:focus-visible{color:var(--text);border-color:var(--primary);outline:none}
+
+/* ===== PLACAR ===== */
+.scoreboard{
+  width:100%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:.85rem;box-shadow:var(--shadow);
+}
+.score{
+  display:flex;flex-direction:column;align-items:center;gap:.15rem;
+  padding:.4rem;border-radius:var(--radius-sm);transition:var(--transition);
+}
+.score-label{font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
+.score-value{font-size:clamp(1.2rem,4vw,1.6rem);font-weight:800}
+.score-x .score-value{color:var(--x-color)}
+.score-o .score-value{color:var(--o-color)}
+.score-draw .score-value{color:var(--draw-color)}
+.score.active{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--border)}
+
+/* ===== INDICADOR DE VEZ ===== */
+.turn-indicator{
+  margin:0;font-size:clamp(.9rem,2.8vw,1rem);color:var(--text-muted);text-align:center;
+}
+.turn-indicator strong{color:var(--text)}
+.turn-indicator .x{color:var(--x-color)}
+.turn-indicator .o{color:var(--o-color)}
+
+/* ===== TABULEIRO ===== */
+.board-wrapper{width:100%;display:flex;justify-content:center}
+.board{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(.5rem,1.5vw,.75rem);
+  width:100%;max-width:min(88vw,420px);aspect-ratio:1/1;
+}
+.cell{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  font-size:clamp(1.8rem,9vw,3.2rem);font-weight:800;color:var(--text);
+  transition:var(--transition);user-select:none;-webkit-tap-highlight-color:transparent;
+  aspect-ratio:1/1;padding:0;position:relative;overflow:hidden;
+}
+.cell:hover:not(.disabled):not(.filled),
+.cell:focus-visible:not(.disabled):not(.filled){
+  background:var(--surface-2);border-color:var(--primary);outline:none;
+}
+.cell.filled{cursor:default}
+.cell.mark-x{color:var(--x-color)}
+.cell.mark-o{color:var(--o-color)}
+.cell.disabled{cursor:not-allowed}
+.cell.winner{
+  background:rgba(99,102,241,.18);
+  border-color:var(--primary);
+  animation:pulse 1.2s ease infinite;
+}
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.4)}
+  50%{box-shadow:0 0 0 8px rgba(99,102,241,0)}
+}
+@keyframes pop{
+  0%{transform:scale(.5);opacity:0}
+  70%{transform:scale(1.1)}
+  100%{transform:scale(1);opacity:1}
+}
+.cell .mark{animation:pop 220ms ease}
+
+/* ===== MENSAGEM ===== */
+.message{
+  margin:0;min-height:1.5em;font-size:clamp(.9rem,2.8vw,1.05rem);
+  font-weight:600;text-align:center;transition:var(--transition);
+}
+.message.win-x{color:var(--x-color)}
+.message.win-o{color:var(--o-color)}
+.message.draw{color:var(--draw-color)}
+
+/* ===== AÇÕES (ocultas — acessíveis via bottom nav) ===== */
+.actions{display:none}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:.75rem 1rem;border-radius:var(--radius-sm);
+  background:var(--surface);color:var(--text);border:1px solid var(--border);
+  font-size:clamp(.8rem,2.6vw,.95rem);font-weight:600;transition:var(--transition);
+  min-height:44px;
+}
+.btn:hover,.btn:focus-visible{background:var(--surface-2);border-color:var(--primary);outline:none}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn-primary:hover,.btn-primary:focus-visible{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn-ghost{background:transparent}
+
+/* ===== FOOTER ===== */
+.app-footer{display:none}
+
+/* ===== BOTTOM NAV FIXO ===== */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:space-around;
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:.5rem max(1rem,env(safe-area-inset-right)) max(calc(.5rem + env(safe-area-inset-bottom)),.5rem) max(1rem,env(safe-area-inset-left));
+  z-index:50;gap:.5rem;
+  box-shadow:0 -4px 24px rgba(0,0,0,.35);
+}
+.nav-btn{
+  display:flex;flex-direction:column;align-items:center;gap:.25rem;
+  background:none;border:none;color:var(--text-muted);
+  font-size:.65rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  padding:.4rem .6rem;border-radius:var(--radius-sm);
+  transition:var(--transition);min-width:52px;
+}
+.nav-btn:hover,.nav-btn:focus-visible{color:var(--text);background:var(--surface-2);outline:none}
+.nav-btn.active{color:var(--primary)}
+.nav-btn svg{width:22px;height:22px;flex-shrink:0}
+
+/* ===== DRAWER ===== */
+.drawer-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;
+  backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:opacity 250ms ease;
+}
+.drawer-overlay.open{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;bottom:0;left:0;right:0;z-index:61;
+  background:var(--surface);border-top:1px solid var(--border);
+  border-radius:var(--radius) var(--radius) 0 0;
+  padding:0 1rem max(calc(1rem + env(safe-area-inset-bottom)),1.25rem);
+  box-shadow:0 -8px 40px rgba(0,0,0,.45);
+  transform:translateY(100%);transition:transform 300ms cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;gap:.5rem;
+}
+.drawer.open{transform:translateY(0)}
+.drawer-handle{
+  width:40px;height:4px;border-radius:999px;
+  background:var(--surface-2);margin:.75rem auto .5rem;flex-shrink:0;
+}
+.drawer-title{
+  font-size:.7rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-muted);padding:.25rem 0 .1rem;margin:0;
+}
+.drawer-item{
+  display:flex;align-items:center;gap:.85rem;
+  width:100%;background:none;border:none;color:var(--text);
+  font-size:.95rem;font-weight:600;padding:.85rem .75rem;
+  border-radius:var(--radius-sm);text-align:left;
+  transition:var(--transition);
+}
+.drawer-item:hover,.drawer-item:focus-visible{background:var(--surface-2);outline:none}
+.drawer-item:active{transform:translateY(1px)}
+.drawer-item svg{width:20px;height:20px;flex-shrink:0;color:var(--text-muted)}
+.drawer-item.primary{color:var(--primary)}
+.drawer-item.primary svg{color:var(--primary)}
+.drawer-sep{height:1px;background:var(--border);margin:.1rem 0}
+
+/* ===== MODAL ===== */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;
+  align-items:center;justify-content:center;padding:1rem;z-index:100;
+  backdrop-filter:blur(4px);animation:fade 200ms ease;
+}
+.modal-overlay[hidden]{display:none}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:1rem;animation:pop 220ms ease;
+}
+.modal h2{margin:0;font-size:1.15rem}
+.field{display:flex;flex-direction:column;gap:.35rem}
+.field label{font-size:.8rem;color:var(--text-muted);font-weight:600}
+.field select{
+  padding:.6rem .75rem;border-radius:var(--radius-sm);border:1px solid var(--border);
+  background:var(--surface-2);color:var(--text);font-size:.9rem;min-height:44px;
+}
+.field select:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
+.modal-actions{display:flex;gap:.6rem;justify-content:space-between;flex-wrap:wrap}
+.modal-actions .btn{flex:1;min-width:120px}
+
+/* ===== REDUCED MOTION ===== */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+/* ===== RESPONSIVO ===== */
+@media (min-width:481px){
+  /* actions removido */
+}
+@media (min-width:769px){
+  .app{gap:1.25rem}
+  .board{max-width:min(60vw,460px)}
+  .scoreboard{max-width:600px}
+  .app-header,.scoreboard,.turn-indicator,.message{max-width:720px;width:100%}
+}
+@media (min-width:1025px){
+  .app{padding:2.5rem}
+  .board{max-width:min(50vw,500px)}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Pular para o conteúdo principal</a>
+
+<div class="app" id="app">
+  <header class="app-header">
+    <h1 class="app-title">JOGO DA VELHA</h1>
+    <div class="header-info">
+      <span class="badge" id="modeBadge" aria-live="polite">2 Jogadores</span>
+      <button class="icon-btn" id="settingsBtn" aria-label="Abrir configurações" title="Configurações">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/>
+          <path fill="currentColor" d="m19.4 13-.9-.5a6.9 6.9 0 0 0 0-1l.9-.5a1 1 0 0 0 .4-1.3l-1.2-2a1 1 0 0 0-1.2-.4l-1 .4a7 7 0 0 0-.9-.5l-.1-1.1a1 1 0 0 0-1-.9h-2.4a1 1 0 0 0-1 .9l-.1 1.1a7 7 0 0 0-.9.5l-1-.4a1 1 0 0 0-1.2.4l-1.2 2a1 1 0 0 0 .4 1.3l.9.5a6.9 6.9 0 0 0 0 1l-.9.5a1 1 0 0 0-.4 1.3l1.2 2a1 1 0 0 0 1.2.4l1-.4a7 7 0 0 0 .9.5l.1 1.1a1 1 0 0 0 1 .9h2.4a1 1 0 0 0 1-.9l.1-1.1a7 7 0 0 0 .9-.5l1 .4a1 1 0 0 0 1.2-.4l1.2-2a1 1 0 0 0-.4-1.3Z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <section class="scoreboard" aria-label="Placar">
+    <div class="score score-x" id="scoreX">
+      <span class="score-label">X</span>
+      <span class="score-value" id="scoreXValue">0</span>
+    </div>
+    <div class="score score-draw" id="scoreDraw">
+      <span class="score-label">Empates</span>
+      <span class="score-value" id="scoreDrawValue">0</span>
+    </div>
+    <div class="score score-o" id="scoreO">
+      <span class="score-label">O</span>
+      <span class="score-value" id="scoreOValue">0</span>
+    </div>
+  </section>
+
+  <p class="turn-indicator" id="turnIndicator" aria-live="polite">Vez de <strong class="x">X</strong></p>
+
+  <main id="main" class="board-wrapper">
+    <div class="board" id="board" role="grid" aria-label="Tabuleiro do jogo da velha"></div>
+  </main>
+
+  <p class="message" id="message" role="status" aria-live="assertive"></p>
+
+  <!-- botões de ação e footer movidos para o bottom nav -->
+  <button id="newGameBtn" hidden></button>
+  <button id="restartBtn" hidden></button>
+  <button id="switchModeBtn" hidden></button>
+</div>
+
+<!-- ===== BOTTOM NAV FIXO ===== -->
+<nav class="bottom-nav" aria-label="Navegação principal">
+  <button class="nav-btn" id="navNewGame" aria-label="Novo jogo">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
+    Novo
+  </button>
+  <button class="nav-btn" id="navRestart" aria-label="Reiniciar partida">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8Z"/></svg>
+    Reiniciar
+  </button>
+  <button class="nav-btn" id="navMenu" aria-label="Abrir menu" aria-expanded="false" aria-controls="bottomDrawer">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 18h16v-2H4v2Zm0-5h16v-2H4v2Zm0-7v2h16V6H4Z"/></svg>
+    Menu
+  </button>
+  <button class="nav-btn" id="navSettings" aria-label="Configurações">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/><path fill="currentColor" d="m19.4 13-.9-.5a6.9 6.9 0 0 0 0-1l.9-.5a1 1 0 0 0 .4-1.3l-1.2-2a1 1 0 0 0-1.2-.4l-1 .4a7 7 0 0 0-.9-.5l-.1-1.1a1 1 0 0 0-1-.9h-2.4a1 1 0 0 0-1 .9l-.1 1.1a7 7 0 0 0-.9.5l-1-.4a1 1 0 0 0-1.2.4l-1.2 2a1 1 0 0 0 .4 1.3l.9.5a6.9 6.9 0 0 0 0 1l-.9.5a1 1 0 0 0-.4 1.3l1.2 2a1 1 0 0 0 1.2.4l1-.4a7 7 0 0 0 .9.5l.1 1.1a1 1 0 0 0 1 .9h2.4a1 1 0 0 0 1-.9l.1-1.1a7 7 0 0 0 .9-.5l1 .4a1 1 0 0 0 1.2-.4l1.2-2a1 1 0 0 0-.4-1.3Z"/></svg>
+    Config
+  </button>
+</nav>
+
+<!-- ===== DRAWER ===== -->
+<div class="drawer-overlay" id="drawerOverlay" aria-hidden="true"></div>
+<div class="drawer" id="bottomDrawer" role="dialog" aria-modal="true" aria-label="Menu do jogo" aria-hidden="true">
+  <div class="drawer-handle" aria-hidden="true"></div>
+  <p class="drawer-title">Ações</p>
+
+  <button class="drawer-item primary" id="drawerNewGame">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
+    Novo jogo
+  </button>
+
+  <button class="drawer-item" id="drawerRestart">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8Z"/></svg>
+    Reiniciar partida
+  </button>
+
+  <button class="drawer-item" id="drawerSwitchMode">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3Zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3Zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5Zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5Z"/></svg>
+    Alternar modo
+  </button>
+
+  <div class="drawer-sep"></div>
+  <p class="drawer-title">Configurações</p>
+
+  <button class="drawer-item" id="drawerSettings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/><path fill="currentColor" d="m19.4 13-.9-.5a6.9 6.9 0 0 0 0-1l.9-.5a1 1 0 0 0 .4-1.3l-1.2-2a1 1 0 0 0-1.2-.4l-1 .4a7 7 0 0 0-.9-.5l-.1-1.1a1 1 0 0 0-1-.9h-2.4a1 1 0 0 0-1 .9l-.1 1.1a7 7 0 0 0-.9.5l-1-.4a1 1 0 0 0-1.2.4l-1.2 2a1 1 0 0 0 .4 1.3l.9.5a6.9 6.9 0 0 0 0 1l-.9.5a1 1 0 0 0-.4 1.3l1.2 2a1 1 0 0 0 1.2.4l1-.4a7 7 0 0 0 .9.5l.1 1.1a1 1 0 0 0 1 .9h2.4a1 1 0 0 0 1-.9l.1-1.1a7 7 0 0 0 .9-.5l1 .4a1 1 0 0 0 1.2-.4l1.2-2a1 1 0 0 0-.4-1.3Z"/></svg>
+    Configurações
+  </button>
+
+  <button class="drawer-item" id="drawerResetScore">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12ZM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4Z"/></svg>
+    Zerar placar
+  </button>
+</div>
+
+<div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" hidden>
+  <div class="modal">
+    <h2 id="settingsTitle">Configurações</h2>
+    <div class="field">
+      <label for="selectMode">Modo de jogo</label>
+      <select id="selectMode">
+        <option value="pvp">Jogador vs Jogador</option>
+        <option value="pve">Jogador vs Computador</option>
+      </select>
+    </div>
+    <div class="field" id="firstPlayerField">
+      <label for="selectFirst">Quem começa?</label>
+      <select id="selectFirst">
+        <option value="X">Jogador (X)</option>
+        <option value="O">Computador (O)</option>
+      </select>
+    </div>
+    <div class="field" id="difficultyField">
+      <label for="selectDifficulty">Dificuldade da IA</label>
+      <select id="selectDifficulty">
+        <option value="hard">Avançada (Minimax)</option>
+        <option value="easy">Fácil (aleatória)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="resetScoreBtn">Zerar placar</button>
+      <button class="btn btn-primary" id="closeSettingsBtn">Concluir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============================================================
+     STORAGE — persistência segura em localStorage
+     ============================================================ */
+  const STORAGE_KEY = 'jogoDaVelha.v1';
+
+  const Storage = {
+    defaults(){
+      return {
+        score:{ X:0, O:0, D:0 },
+        mode:'pvp',
+        firstPlayer:'X',
+        difficulty:'hard'
+      };
+    },
+    load(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return this.defaults();
+        const data = JSON.parse(raw);
+        const def = this.defaults();
+        return {
+          score:{
+            X:Number(data?.score?.X)||0,
+            O:Number(data?.score?.O)||0,
+            D:Number(data?.score?.D)||0
+          },
+          mode: data?.mode === 'pve' ? 'pve' : 'pvp',
+          firstPlayer: data?.firstPlayer === 'O' ? 'O' : 'X',
+          difficulty: data?.difficulty === 'easy' ? 'easy' : 'hard'
+        };
+      }catch(e){
+        console.warn('Falha ao ler localStorage:', e);
+        return this.defaults();
+      }
+    },
+    save(state){
+      try{
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }catch(e){
+        console.warn('Falha ao salvar localStorage:', e);
+      }
+    },
+    clearScore(){
+      const s = this.load();
+      s.score = { X:0, O:0, D:0 };
+      this.save(s);
+      return s;
+    }
+  };
+
+  /* ============================================================
+     AI — Minimax com poda alfa-beta + modo fácil
+     ============================================================ */
+  const WINS = [
+    [0,1,2],[3,4,5],[6,7,8],
+    [0,3,6],[1,4,7],[2,5,8],
+    [0,4,8],[2,4,6]
+  ];
+
+  function winnerOf(board){
+    for(const [a,b,c] of WINS){
+      if(board[a] && board[a] === board[b] && board[a] === board[c]){
+        return { player: board[a], combo:[a,b,c] };
+      }
+    }
+    return null;
+  }
+
+  function isFull(board){
+    return board.every(v => v !== '');
+  }
+
+  const AI = {
+    minimax(board, depth, isMaximizing, aiPlayer, humanPlayer, alpha, beta){
+      const w = winnerOf(board);
+      if(w){
+        if(w.player === aiPlayer) return 10 - depth;
+        if(w.player === humanPlayer) return depth - 10;
+      }
+      if(isFull(board)) return 0;
+
+      if(isMaximizing){
+        let best = -Infinity;
+        for(let i=0;i<9;i++){
+          if(board[i]) continue;
+          board[i] = aiPlayer;
+          const score = this.minimax(board, depth+1, false, aiPlayer, humanPlayer, alpha, beta);
+          board[i] = '';
+          best = Math.max(best, score);
+          alpha = Math.max(alpha, score);
+          if(beta <= alpha) break;
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for(let i=0;i<9;i++){
+          if(board[i]) continue;
+          board[i] = humanPlayer;
+          const score = this.minimax(board, depth+1, true, aiPlayer, humanPlayer, alpha, beta);
+          board[i] = '';
+          best = Math.min(best, score);
+          beta = Math.min(beta, score);
+          if(beta <= alpha) break;
+        }
+        return best;
+      }
+    },
+
+    bestMove(board, aiPlayer, difficulty){
+      const humanPlayer = aiPlayer === 'X' ? 'O' : 'X';
+      const empty = board.map((v,i)=>v===''?i:-1).filter(i=>i>=0);
+      if(empty.length === 0) return -1;
+
+      if(difficulty === 'easy'){
+        // 70% aleatório, 30% ótimo (para ainda dar alguma chance)
+        if(Math.random() < 0.7){
+          return empty[Math.floor(Math.random()*empty.length)];
+        }
+      }
+
+      let bestScore = -Infinity;
+      let bestMove = empty[0];
+      const work = board.slice();
+      for(const i of empty){
+        work[i] = aiPlayer;
+        const score = this.minimax(work, 0, false, aiPlayer, humanPlayer, -Infinity, Infinity);
+        work[i] = '';
+        if(score > bestScore){
+          bestScore = score;
+          bestMove = i;
+        }
+      }
+      return bestMove;
+    }
+  };
+
+  /* ============================================================
+     GAME — estado e regras
+     ============================================================ */
+  const Game = {
+    board: Array(9).fill(''),
+    current: 'X',
+    finished: false,
+    winner: null,       // {player, combo}
+    isDraw: false,
+    mode: 'pvp',
+    firstPlayer: 'X',
+    difficulty: 'hard',
+    aiThinking: false,
+
+    reset(mode, firstPlayer){
+      this.board = Array(9).fill('');
+      this.finished = false;
+      this.winner = null;
+      this.isDraw = false;
+      this.aiThinking = false;
+      this.current = firstPlayer || this.firstPlayer || 'X';
+      this.mode = mode || this.mode;
+      this.firstPlayer = firstPlayer || this.firstPlayer;
+    },
+
+    play(index){
+      if(this.finished || this.aiThinking) return null;
+      if(index < 0 || index > 8) return null;
+      if(this.board[index]) return null;
+
+      this.board[index] = this.current;
+
+      const w = winnerOf(this.board);
+      if(w){
+        this.finished = true;
+        this.winner = w;
+        return { type:'win', player:w.player, combo:w.combo, index };
+      }
+      if(isFull(this.board)){
+        this.finished = true;
+        this.isDraw = true;
+        return { type:'draw', index };
+      }
+      this.current = this.current === 'X' ? 'O' : 'X';
+      return { type:'move', index };
+    },
+
+    isAITurn(){
+      return this.mode === 'pve' && !this.finished && !this.isDraw && this.current === 'O';
+    }
+  };
+
+  /* ============================================================
+     UI — referências DOM
+     ============================================================ */
+  const $ = (sel) => document.querySelector(sel);
+  const els = {
+    app: $('#app'),
+    board: $('#board'),
+    modeBadge: $('#modeBadge'),
+    turn: $('#turnIndicator'),
+    message: $('#message'),
+    scoreX: $('#scoreX'),
+    scoreO: $('#scoreO'),
+    scoreD: $('#scoreDraw'),
+    scoreXValue: $('#scoreXValue'),
+    scoreOValue: $('#scoreOValue'),
+    scoreDValue: $('#scoreDrawValue'),
+    newGameBtn: $('#newGameBtn'),
+    restartBtn: $('#restartBtn'),
+    switchModeBtn: $('#switchModeBtn'),
+    menuBtn: null, /* removido — substituído pelo bottom nav */
+    settingsBtn: $('#settingsBtn'),
+    modal: $('#settingsModal'),
+    selectMode: $('#selectMode'),
+    selectFirst: $('#selectFirst'),
+    selectDifficulty: $('#selectDifficulty'),
+    firstPlayerField: $('#firstPlayerField'),
+    difficultyField: $('#difficultyField'),
+    resetScoreBtn: $('#resetScoreBtn'),
+    closeSettingsBtn: $('#closeSettingsBtn')
+  };
+
+  let state = Storage.load();
+
+  /* ===== Cria células ===== */
+  function buildBoard(){
+    els.board.innerHTML = '';
+    for(let i=0;i<9;i++){
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'cell';
+      btn.dataset.index = i;
+      btn.setAttribute('role','gridcell');
+      btn.setAttribute('aria-label', `Posição ${i+1}, vazia`);
+      btn.setAttribute('aria-disabled','false');
+      btn.addEventListener('click', () => handleCellClick(i));
+      btn.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          handleCellClick(i);
+        }
+      });
+      els.board.appendChild(btn);
+    }
+  }
+
+  /* ===== Render ===== */
+  function render(){
+    // Tabuleiro
+    const cells = els.board.querySelectorAll('.cell');
+    cells.forEach((cell, i) => {
+      const val = Game.board[i];
+      cell.classList.remove('mark-x','mark-o','filled','winner','disabled');
+      cell.innerHTML = '';
+      if(val){
+        const span = document.createElement('span');
+        span.className = 'mark';
+        span.textContent = val;
+        cell.appendChild(span);
+        cell.classList.add('filled', val === 'X' ? 'mark-x' : 'mark-o');
+        cell.setAttribute('aria-label', `Posição ${i+1}, ${val}`);
+      } else {
+        cell.setAttribute('aria-label', `Posição ${i+1}, vazia`);
+      }
+      if(Game.finished || Game.aiThinking){
+        cell.classList.add('disabled');
+        cell.setAttribute('aria-disabled','true');
+      } else {
+        cell.setAttribute('aria-disabled','false');
+      }
+    });
+
+    // Destaque da combinação vencedora
+    if(Game.winner && Game.winner.combo){
+      Game.winner.combo.forEach(i => {
+        cells[i].classList.add('winner');
+      });
+    }
+
+    // Turno
+    if(Game.finished){
+      if(Game.winner){
+        els.turn.innerHTML = `Vencedor: <strong class="${Game.winner.player === 'X' ? 'x' : 'o'}">${Game.winner.player}</strong>`;
+      } else if(Game.isDraw){
+        els.turn.textContent = 'Empate!';
+      } else {
+        els.turn.innerHTML = `Vez de <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
+      }
+    } else if(Game.aiThinking){
+      els.turn.innerHTML = `Computador pensando…`;
+    } else {
+      els.turn.innerHTML = `Vez de <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
+    }
+
+    // Placar
+    els.scoreXValue.textContent = state.score.X;
+    els.scoreOValue.textContent = state.score.O;
+    els.scoreDValue.textContent = state.score.D;
+
+    // Destaque do jogador ativo no placar
+    els.scoreX.classList.toggle('active', !Game.finished && Game.current === 'X');
+    els.scoreO.classList.toggle('active', !Game.finished && Game.current === 'O' && Game.mode === 'pvp');
+    els.scoreD.classList.remove('active');
+
+    // Badge de modo
+    els.modeBadge.textContent = Game.mode === 'pve' ? 'Vs Computador' : '2 Jogadores';
+  }
+
+  /* ===== Mensagens ===== */
+  function showMessage(text, cls){
+    els.message.textContent = text || '';
+    els.message.className = 'message' + (cls ? ' ' + cls : '');
+  }
+
+  /* ===== Atualiza placar no storage ===== */
+  function persistScore(){
+    Storage.save(state);
+  }
+
+  /* ===== Fim de partida ===== */
+  function finish(result){
+    if(result.type === 'win'){
+      state.score[result.player] = (state.score[result.player] || 0) + 1;
+      persistScore();
+      showMessage(
+        result.player === 'X' ? 'Jogador X venceu!' : 'Jogador O venceu!',
+        result.player === 'X' ? 'win-x' : 'win-o'
+      );
+    } else if(result.type === 'draw'){
+      state.score.D = (state.score.D || 0) + 1;
+      persistScore();
+      showMessage('Empate!', 'draw');
+    }
+  }
+
+  /* ===== Clique em célula ===== */
+  function handleCellClick(index){
+    if(Game.finished || Game.aiThinking) return;
+    if(Game.mode === 'pve' && Game.current === 'O') return; // vez da IA
+    if(Game.board[index]) return;
+
+    showMessage('');
+    const result = Game.play(index);
+    render();
+
+    if(result && (result.type === 'win' || result.type === 'draw')){
+      finish(result);
+      render();
+      return;
+    }
+
+    if(Game.mode === 'pve' && Game.current === 'O' && !Game.finished){
+      triggerAI();
+    }
+  }
+
+  /* ===== Disparo da IA ===== */
+  function triggerAI(){
+    if(Game.mode !== 'pve' || Game.finished) return;
+    if(Game.current !== 'O') return;
+    Game.aiThinking = true;
+    render();
+
+    const delay = 350 + Math.random() * 300;
+    setTimeout(() => {
+      const move = AI.bestMove(Game.board, 'O', Game.difficulty);
+      Game.aiThinking = false;
+      if(move < 0 || Game.finished) { render(); return; }
+
+      const result = Game.play(move);
+      render();
+      if(result && (result.type === 'win' || result.type === 'draw')){
+        finish(result);
+        render();
+      }
+    }, delay);
+  }
+
+  /* ===== Controles ===== */
+  function startNewGame(){
+    Game.reset(Game.mode, Game.firstPlayer);
+    showMessage('');
+    render();
+    if(Game.mode === 'pve' && Game.current === 'O'){
+      triggerAI();
+    }
+  }
+
+  function restartMatch(){
+    startNewGame();
+  }
+
+  function switchMode(){
+    Game.mode = Game.mode === 'pvp' ? 'pve' : 'pvp';
+    state.mode = Game.mode;
+    Storage.save(state);
+    startNewGame();
+  }
+
+  function goMenu(){
+    // Simula retorno ao menu inicial: reinicia partida e abre configurações
+    startNewGame();
+    openSettings();
+  }
+
+  /* ===== Modal ===== */
+  function openSettings(){
+    els.selectMode.value = Game.mode;
+    els.selectFirst.value = Game.firstPlayer;
+    els.selectDifficulty.value = Game.difficulty;
+    toggleFirstPlayerField();
+    toggleDifficultyField();
+    els.modal.hidden = false;
+    els.selectMode.focus();
+  }
+  function closeSettings(){
+    els.modal.hidden = true;
+    els.settingsBtn.focus();
+  }
+  function toggleFirstPlayerField(){
+    els.firstPlayerField.style.display = els.selectMode.value === 'pve' ? '' : 'none';
+  }
+  function toggleDifficultyField(){
+    els.difficultyField.style.display = els.selectMode.value === 'pve' ? '' : 'none';
+  }
+
+  /* ===== Eventos ===== */
+  els.newGameBtn.addEventListener('click', startNewGame);
+  els.restartBtn.addEventListener('click', restartMatch);
+  els.switchModeBtn.addEventListener('click', switchMode);
+  // menuBtn removido — ações movidas para o bottom nav drawer
+
+  els.settingsBtn.addEventListener('click', openSettings);
+  els.closeSettingsBtn.addEventListener('click', closeSettings);
+  els.modal.addEventListener('click', (e) => {
+    if(e.target === els.modal) closeSettings();
+  });
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape' && !els.modal.hidden) closeSettings();
+  });
+
+  els.selectMode.addEventListener('change', () => {
+    toggleFirstPlayerField();
+    toggleDifficultyField();
+  });
+
+  els.resetScoreBtn.addEventListener('click', () => {
+    if(confirm('Tem certeza que deseja zerar o placar?')){
+      state = Storage.clearScore();
+      // mantém preferências atuais
+      state.mode = Game.mode;
+      state.firstPlayer = Game.firstPlayer;
+      state.difficulty = Game.difficulty;
+      persistScore();
+      render();
+      showMessage('Placar zerado.', '');
+    }
+  });
+
+  // Salva preferências ao fechar o modal
+  els.selectMode.addEventListener('change', () => {
+    Game.mode = els.selectMode.value;
+    state.mode = Game.mode;
+    Storage.save(state);
+    startNewGame();
+  });
+  els.selectFirst.addEventListener('change', () => {
+    Game.firstPlayer = els.selectFirst.value;
+    state.firstPlayer = Game.firstPlayer;
+    Storage.save(state);
+    startNewGame();
+  });
+  els.selectDifficulty.addEventListener('change', () => {
+    Game.difficulty = els.selectDifficulty.value;
+    state.difficulty = Game.difficulty;
+    Storage.save(state);
+  });
+
+  /* ===== Inicialização ===== */
+  function init(){
+    Game.mode = state.mode;
+    Game.firstPlayer = state.firstPlayer;
+    Game.difficulty = state.difficulty;
+
+    buildBoard();
+    Game.reset(Game.mode, Game.firstPlayer);
+    render();
+    showMessage('');
+
+    // Se modo pve e computador começa
+    if(Game.mode === 'pve' && Game.current === 'O'){
+      triggerAI();
+    }
+  }
+
+  /* ===== BOTTOM NAV & DRAWER ===== */
+  const drawer = document.getElementById('bottomDrawer');
+  const drawerOverlay = document.getElementById('drawerOverlay');
+  const navMenu = document.getElementById('navMenu');
+
+  function openDrawer(){
+    drawer.classList.add('open');
+    drawerOverlay.classList.add('open');
+    drawer.setAttribute('aria-hidden','false');
+    drawerOverlay.setAttribute('aria-hidden','false');
+    navMenu.setAttribute('aria-expanded','true');
+    navMenu.classList.add('active');
+    // Foco no primeiro item do drawer
+    const first = drawer.querySelector('.drawer-item');
+    if(first) setTimeout(()=>first.focus(), 50);
+  }
+
+  function closeDrawer(){
+    drawer.classList.remove('open');
+    drawerOverlay.classList.remove('open');
+    drawer.setAttribute('aria-hidden','true');
+    drawerOverlay.setAttribute('aria-hidden','true');
+    navMenu.setAttribute('aria-expanded','false');
+    navMenu.classList.remove('active');
+    navMenu.focus();
+  }
+
+  navMenu.addEventListener('click', ()=>{
+    drawer.classList.contains('open') ? closeDrawer() : openDrawer();
+  });
+  drawerOverlay.addEventListener('click', closeDrawer);
+
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+  });
+
+  // Swipe down para fechar o drawer
+  let touchStartY = 0;
+  drawer.addEventListener('touchstart', (e)=>{ touchStartY = e.touches[0].clientY; }, { passive:true });
+  drawer.addEventListener('touchend', (e)=>{
+    if(e.changedTouches[0].clientY - touchStartY > 60) closeDrawer();
+  }, { passive:true });
+
+  // Botões do bottom nav
+  document.getElementById('navNewGame').addEventListener('click', startNewGame);
+  document.getElementById('navRestart').addEventListener('click', restartMatch);
+  document.getElementById('navSettings').addEventListener('click', openSettings);
+
+  // Botões do drawer
+  document.getElementById('drawerNewGame').addEventListener('click', ()=>{ closeDrawer(); startNewGame(); });
+  document.getElementById('drawerRestart').addEventListener('click', ()=>{ closeDrawer(); restartMatch(); });
+  document.getElementById('drawerSwitchMode').addEventListener('click', ()=>{ closeDrawer(); switchMode(); });
+  document.getElementById('drawerSettings').addEventListener('click', ()=>{ closeDrawer(); openSettings(); });
+  document.getElementById('drawerResetScore').addEventListener('click', ()=>{
+    closeDrawer();
+    if(confirm('Tem certeza que deseja zerar o placar?')){
+      state = Storage.clearScore();
+      state.mode = Game.mode;
+      state.firstPlayer = Game.firstPlayer;
+      state.difficulty = Game.difficulty;
+      persistScore();
+      render();
+      showMessage('Placar zerado.', '');
+    }
+  });
+
+  init();
+})();
+</script>
+
+<!-- PWA — Registro do Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then((reg) => {
+        console.log('[PWA] Service Worker registrado:', reg.scope);
+      })
+      .catch((err) => {
+        console.warn('[PWA] Falha ao registrar Service Worker:', err);
+      });
+  });
+}
+</script>
+</body>
+</html>
