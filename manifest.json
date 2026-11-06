@@ -2,7 +2,7 @@
   "name": "Jogo da Velha",
   "short_name": "Velha",
   "description": "Jogo da Velha moderno com IA Minimax e multiplayer local.",
-  "start_url": "/jogodavelha.html",
+  "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0f172a",

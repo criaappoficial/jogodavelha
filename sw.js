@@ -5,7 +5,8 @@
 
 const CACHE_NAME = 'jogodavelha-v1';
 const ASSETS = [
-  '/jogodavelha.html',
+  '/',
+  '/index.html',
   '/manifest.json',
   '/icons/icon-72.png',
   '/icons/icon-96.png',
@@ -67,7 +68,7 @@ self.addEventListener('fetch', (event) => {
       }).catch(() => {
         // Offline fallback: retorna o HTML principal
         if (event.request.destination === 'document') {
-          return caches.match('/jogodavelha.html');
+          return caches.match('/index.html');
         }
       });
     })
