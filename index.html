@@ -240,6 +240,8 @@ button{cursor:pointer}
 .drawer-item svg{width:20px;height:20px;flex-shrink:0;color:var(--text-muted)}
 .drawer-item.primary{color:var(--primary)}
 .drawer-item.primary svg{color:var(--primary)}
+.drawer-item.danger{color:#f87171}
+.drawer-item.danger svg{color:#f87171}
 .drawer-sep{height:1px;background:var(--border);margin:.1rem 0}
 
 /* ===== MODAL ===== */
@@ -413,6 +415,19 @@ button{cursor:pointer}
 }
 .ping-btn:hover,.ping-btn:focus-visible{border-color:var(--primary);color:var(--primary);outline:none}
 .ping-btn svg{width:14px;height:14px;flex-shrink:0}
+.online-status-actions{
+  display:inline-flex;align-items:center;gap:.4rem;flex-shrink:0;
+}
+.leave-online-btn{
+  display:inline-flex;align-items:center;gap:.3rem;
+  padding:.35rem .65rem;border-radius:8px;
+  background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.38);color:#f87171;
+  font-size:.76rem;font-weight:700;transition:var(--transition);
+}
+.leave-online-btn:hover,.leave-online-btn:focus-visible{
+  background:rgba(248,113,113,.22);border-color:#f87171;outline:none;
+}
+.leave-online-btn svg{width:14px;height:14px;flex-shrink:0}
 .ping-toast{
   position:fixed;top:max(1rem,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
   z-index:120;display:inline-flex;align-items:center;gap:.5rem;
@@ -873,16 +888,22 @@ html,body{overflow-x:hidden}
     <button class="btn btn-sm" id="cancelOutgoingInviteBtn" type="button">Cancelar</button>
   </div>
 
-  <!-- Barra de Presença Online + Sinalizar ao Oponente -->
+  <!-- Barra de Presença Online + Sinalizar ao Oponente + Sair -->
   <div class="online-status-bar" id="onlineStatusBar" hidden>
     <span class="presence-indicator">
       <span class="presence-dot" id="oppPresenceDot"></span>
       <span id="oppPresenceText">Oponente online</span>
     </span>
-    <button class="ping-btn" id="pingOpponentBtn" type="button" title="Avisar ao oponente que você está online">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-      <span id="pingBtnLabel">Sinalizar presença</span>
-    </button>
+    <div class="online-status-actions">
+      <button class="ping-btn" id="pingOpponentBtn" type="button" title="Avisar ao oponente que você está online">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="pingBtnLabel">Sinalizar</span>
+      </button>
+      <button class="leave-online-btn" id="leaveOnlineBtn" type="button" title="Sair da partida online">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Sair</span>
+      </button>
+    </div>
   </div>
 
   <section class="scoreboard" aria-label="Placar">
@@ -972,6 +993,11 @@ html,body{overflow-x:hidden}
   <button class="drawer-item primary" id="drawerOnline">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
     Jogar Online
+  </button>
+
+  <button class="drawer-item danger" id="drawerLeaveOnline" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Sair da partida online
   </button>
 
   <div class="drawer-sep"></div>
@@ -1103,6 +1129,10 @@ html,body{overflow-x:hidden}
     <button class="btn btn-primary btn-lg" id="playAgainBtn" style="gap:.5rem">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
       Jogar de novo
+    </button>
+    <button class="btn" id="leaveOnlineResultBtn" type="button" style="width:100%;color:#f87171;border-color:rgba(248,113,113,.38);gap:.45rem" hidden>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sair da partida online
     </button>
     <button class="btn btn-ghost" id="closeResultBtn" style="width:100%">Ver tabuleiro</button>
   </div>
@@ -1756,6 +1786,11 @@ html,body{overflow-x:hidden}
       quickChatBarEl.hidden = Game.mode !== 'online';
     }
 
+    const drawerLeaveOnlineEl = document.getElementById('drawerLeaveOnline');
+    if(drawerLeaveOnlineEl){
+      drawerLeaveOnlineEl.hidden = Game.mode !== 'online';
+    }
+
     // Destaque do jogador ativo no placar
     els.scoreX.classList.toggle('active', !Game.finished && (Game.current === 'X' || Game.current === 'ANY'));
     els.scoreO.classList.toggle('active', !Game.finished && ((Game.current === 'O' && (Game.mode === 'pvp' || Game.mode === 'online')) || Game.current === 'ANY'));
@@ -1786,8 +1821,9 @@ html,body{overflow-x:hidden}
   const resScoreX       = document.getElementById('resScoreX');
   const resScoreD       = document.getElementById('resScoreD');
   const resScoreO       = document.getElementById('resScoreO');
-  const playAgainBtn    = document.getElementById('playAgainBtn');
-  const closeResultBtn  = document.getElementById('closeResultBtn');
+  const playAgainBtn         = document.getElementById('playAgainBtn');
+  const leaveOnlineResultBtn = document.getElementById('leaveOnlineResultBtn');
+  const closeResultBtn       = document.getElementById('closeResultBtn');
   let resultTimer = null;
 
   function openResultModal({ icon, title, sub, theme }){
@@ -1800,6 +1836,9 @@ html,body{overflow-x:hidden}
     resScoreX.textContent = state.score.X;
     resScoreD.textContent = state.score.D;
     resScoreO.textContent = state.score.O;
+    if(leaveOnlineResultBtn){
+      leaveOnlineResultBtn.hidden = Game.mode !== 'online';
+    }
     resultModal.hidden = false;
     setTimeout(() => playAgainBtn.focus(), 80);
   }
@@ -2355,7 +2394,7 @@ html,body{overflow-x:hidden}
     async leave(deleteRoom = true){
       this.stopListening();
       this._clearSession();
-      if(deleteRoom && this.isHost && this.roomRef){
+      if(deleteRoom && this.roomRef){
         try{ await this.roomRef.remove(); }catch(e){}
       }
       this.roomRef = null; this.roomId = null;
@@ -2651,16 +2690,39 @@ html,body{overflow-x:hidden}
   }
 
   function leaveOnlineGame(deleteRoom = true){
+    closeResultModal();
     stopTurnTimer();
     stopPresenceHeartbeat();
     Online.stopListening();
     Online.leave(deleteRoom);
+    state = Storage.load();
     Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
     if(Game.mode === 'online') Game.mode = 'pvp';
     state.mode = Game.mode;
     Storage.save(state);
     Game.reset(Game.mode, 'X');
-    buildBoard(); render(); showMessage('');
+    buildBoard(); render(); showMessage('Você saiu da partida online.', '');
+  }
+
+  function userExitOnlineMatch(){
+    if(Game.mode !== 'online') return;
+    SFX.click();
+    leaveOnlineGame(true);
+  }
+
+  const leaveOnlineBtnEl = document.getElementById('leaveOnlineBtn');
+  if(leaveOnlineBtnEl){
+    leaveOnlineBtnEl.addEventListener('click', userExitOnlineMatch);
+  }
+  if(leaveOnlineResultBtn){
+    leaveOnlineResultBtn.addEventListener('click', userExitOnlineMatch);
+  }
+  const drawerLeaveOnlineBtn = document.getElementById('drawerLeaveOnline');
+  if(drawerLeaveOnlineBtn){
+    drawerLeaveOnlineBtn.addEventListener('click', () => {
+      closeDrawer();
+      userExitOnlineMatch();
+    });
   }
 
   /* ===== Online: modal e UI ===== */
