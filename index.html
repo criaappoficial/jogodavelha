@@ -370,6 +370,24 @@ button{cursor:pointer}
   font-weight:800;font-size:.75rem;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
 }
 
+/* ===== ONLINE TURN TIMER ===== */
+.turn-row{
+  display:flex;align-items:center;justify-content:center;gap:.65rem;flex-wrap:wrap;
+  width:100%;max-width:720px;
+}
+.turn-timer{
+  display:inline-flex;align-items:center;gap:.3rem;
+  font-size:.82rem;font-weight:800;font-variant-numeric:tabular-nums;
+  padding:.25rem .65rem;border-radius:999px;
+  background:var(--surface);border:1px solid var(--border);color:var(--text);
+  transition:var(--transition);
+}
+.turn-timer[hidden]{display:none}
+.turn-timer.urgent{
+  color:#f87171;border-color:#f87171;background:rgba(248,113,113,.15);
+  animation:pulse 700ms ease infinite;
+}
+
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
@@ -447,7 +465,10 @@ button{cursor:pointer}
     </div>
   </section>
 
-  <p class="turn-indicator" id="turnIndicator" aria-live="polite">Vez de <strong class="x">X</strong></p>
+  <div class="turn-row">
+    <p class="turn-indicator" id="turnIndicator" aria-live="polite">Vez de <strong class="x">X</strong></p>
+    <span class="turn-timer" id="turnTimer" hidden aria-live="off">⏱ <span id="turnTimerVal">20s</span></span>
+  </div>
 
   <main id="main" class="board-wrapper">
     <div class="board" id="board" role="grid" aria-label="Tabuleiro do jogo da velha"></div>
@@ -1108,7 +1129,7 @@ button{cursor:pointer}
       } else {
         cell.setAttribute('aria-label', `Posição ${i+1}, vazia`);
       }
-      if(Game.finished || Game.aiThinking || (Game.mode === 'online' && Online.myMark !== Game.current)){
+      if(Game.finished || Game.aiThinking || (Game.mode === 'online' && Game.current !== 'ANY' && Online.myMark !== Game.current)){
         cell.classList.add('disabled');
         cell.setAttribute('aria-disabled','true');
       } else {
@@ -1135,10 +1156,14 @@ button{cursor:pointer}
     } else if(Game.aiThinking){
       els.turn.innerHTML = `Computador pensando…`;
     } else if(Game.mode === 'online'){
-      const isMyTurn = Online.myMark === Game.current;
-      els.turn.innerHTML = isMyTurn
-        ? `Sua vez &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`
-        : `Vez do oponente &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
+      if(Game.current === 'ANY'){
+        els.turn.innerHTML = `⚡ <strong>Quem apertar primeiro começa!</strong> (Você é <strong class="${Online.myMark === 'X' ? 'x' : 'o'}">${Online.myMark}</strong>)`;
+      } else {
+        const isMyTurn = Online.myMark === Game.current;
+        els.turn.innerHTML = isMyTurn
+          ? `Sua vez &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`
+          : `Vez do oponente &mdash; <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
+      }
     } else {
       els.turn.innerHTML = `Vez de <strong class="${Game.current === 'X' ? 'x' : 'o'}">${Game.current}</strong>`;
     }
@@ -1149,8 +1174,8 @@ button{cursor:pointer}
     els.scoreDValue.textContent = state.score.D;
 
     // Destaque do jogador ativo no placar
-    els.scoreX.classList.toggle('active', !Game.finished && Game.current === 'X');
-    els.scoreO.classList.toggle('active', !Game.finished && Game.current === 'O' && Game.mode === 'pvp');
+    els.scoreX.classList.toggle('active', !Game.finished && (Game.current === 'X' || Game.current === 'ANY'));
+    els.scoreO.classList.toggle('active', !Game.finished && ((Game.current === 'O' && (Game.mode === 'pvp' || Game.mode === 'online')) || Game.current === 'ANY'));
     els.scoreD.classList.remove('active');
 
     // Badge de modo
@@ -1272,7 +1297,7 @@ button{cursor:pointer}
 
     // Modo online: delega ao Firebase
     if(Game.mode === 'online'){
-      if(Online.myMark !== Game.current) return; // não é sua vez
+      if(Game.current !== 'ANY' && Online.myMark !== Game.current) return; // não é sua vez
       if(Game.board[index]) return;
       showMessage('');
       Online.makeMove(index);
@@ -1516,14 +1541,14 @@ button{cursor:pointer}
       this.roomRef = this.db.ref(`rooms/${code}`);
       await this.roomRef.set({
         hostUid: this.myUid, guestUid: null,
-        board: Array(9).fill(''), currentTurn: 'X',
+        board: Array(9).fill(''), currentTurn: 'ANY',
+        lastWinner: null, winReason: null,
         status: 'waiting', winner: null, winCombo: null, isDraw: false,
         scoreX: 0, scoreO: 0, scoreD: 0,
-        createdAt: firebase.database.ServerValue.TIMESTAMP
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        turnStartedAt: firebase.database.ServerValue.TIMESTAMP,
+        hostHeartbeat: firebase.database.ServerValue.TIMESTAMP
       });
-      // IMPORTANTE: NÃO usamos onDisconnect().remove() aqui!
-      // No celular, minimizar o navegador/PWA para mandar o código no WhatsApp
-      // derruba o WebSocket em poucos segundos e apagaria a sala antes do amigo entrar.
       this._saveSession();
       return code;
     },
@@ -1548,7 +1573,16 @@ button{cursor:pointer}
       }
       this.roomId = code; this.myMark = 'O'; this.isHost = false;
       this.roomRef = ref;
-      await ref.update({ guestUid: this.myUid, status: 'playing' });
+      const upd = {
+        guestUid: this.myUid,
+        guestHeartbeat: firebase.database.ServerValue.TIMESTAMP
+      };
+      if(d.status === 'waiting'){
+        upd.status = 'playing';
+        upd.currentTurn = 'ANY'; // Na primeira partida, quem apertar primeiro começa!
+        upd.turnStartedAt = firebase.database.ServerValue.TIMESTAMP;
+      }
+      await ref.update(upd);
       this._saveSession();
       return code;
     },
@@ -1577,28 +1611,73 @@ button{cursor:pointer}
 
     async makeMove(index){
       if(!this.roomRef) return;
-      const snap = await this.roomRef.once('value');
-      const d = snap.val();
-      if(!d || d.status !== 'playing' || d.currentTurn !== this.myMark || d.board[index]) return;
-      const board = d.board.slice(); board[index] = this.myMark;
-      const w = winnerOf(board); const full = board.every(v=>v!=='');
-      const upd = { board };
-      if(w){
-        upd.status = 'finished'; upd.winner = w.player; upd.winCombo = w.combo;
-        upd[`score${w.player}`] = (d[`score${w.player}`]||0)+1;
-      } else if(full){
-        upd.status = 'finished'; upd.isDraw = true; upd.scoreD = (d.scoreD||0)+1;
-      } else {
-        upd.currentTurn = this.myMark === 'X' ? 'O' : 'X';
-      }
-      await this.roomRef.update(upd);
+      const myMark = this.myMark;
+      await this.roomRef.transaction(d => {
+        if(!d || d.status !== 'playing') return;
+        const board = Array.isArray(d.board) ? d.board.slice() : Array(9).fill('');
+        if(board[index]) return; // célula já preenchida
+        if(d.currentTurn !== 'ANY' && d.currentTurn !== myMark) return; // não é a vez
+
+        board[index] = myMark;
+        d.board = board;
+        d.turnStartedAt = firebase.database.ServerValue.TIMESTAMP;
+        if(myMark === 'X') d.hostHeartbeat = firebase.database.ServerValue.TIMESTAMP;
+        else d.guestHeartbeat = firebase.database.ServerValue.TIMESTAMP;
+
+        const w = winnerOf(board);
+        const full = board.every(v => v !== '');
+        if(w){
+          d.status = 'finished';
+          d.winner = w.player;
+          d.lastWinner = w.player;
+          d.winCombo = w.combo;
+          d.winReason = 'normal';
+          d[`score${w.player}`] = (d[`score${w.player}`] || 0) + 1;
+        } else if(full){
+          d.status = 'finished';
+          d.isDraw = true;
+          d.lastWinner = null; // empate: próxima partida volta para "quem apertar primeiro"
+          d.winReason = null;
+          d.scoreD = (d.scoreD || 0) + 1;
+        } else {
+          d.currentTurn = myMark === 'X' ? 'O' : 'X';
+        }
+        return d;
+      });
+    },
+
+    async claimInactivityWin(){
+      if(!this.roomRef) return;
+      const myMark = this.myMark;
+      await this.roomRef.transaction(d => {
+        if(!d || d.status !== 'playing') return;
+        // Só declara vitória se o turno não era exclusivamente meu (ou era ANY)
+        if(d.currentTurn === myMark) return;
+        d.status = 'finished';
+        d.winner = myMark;
+        d.lastWinner = myMark;
+        d.winCombo = [];
+        d.winReason = 'timeout';
+        d[`score${myMark}`] = (d[`score${myMark}`] || 0) + 1;
+        return d;
+      });
     },
 
     async resetGame(){
       if(!this.roomRef) return;
-      await this.roomRef.update({
-        board: Array(9).fill(''), currentTurn: 'X',
-        status: 'playing', winner: null, winCombo: null, isDraw: false
+      await this.roomRef.transaction(d => {
+        if(!d) return;
+        // Na revanche, quem ganhou a partida anterior começa; se empatou, quem apertar primeiro começa
+        const nextStarter = (d.lastWinner === 'X' || d.lastWinner === 'O') ? d.lastWinner : 'ANY';
+        d.board = Array(9).fill('');
+        d.currentTurn = nextStarter;
+        d.status = 'playing';
+        d.winner = null;
+        d.winCombo = null;
+        d.isDraw = false;
+        d.winReason = null;
+        d.turnStartedAt = firebase.database.ServerValue.TIMESTAMP;
+        return d;
       });
     },
 
@@ -1619,6 +1698,69 @@ button{cursor:pointer}
       this.myMark = null; this.isHost = false;
     }
   };
+
+  /* ===== Online: Temporizador de Inatividade (20s por jogada) ===== */
+  const TURN_LIMIT_SEC = 20;
+  const turnTimerEl    = document.getElementById('turnTimer');
+  const turnTimerValEl = document.getElementById('turnTimerVal');
+  let onlineTimerInterval = null;
+  let currentTurnStartMs  = 0;
+  let lastBeepSec         = -1;
+
+  function stopTurnTimer(){
+    if(onlineTimerInterval){
+      clearInterval(onlineTimerInterval);
+      onlineTimerInterval = null;
+    }
+    if(turnTimerEl){
+      turnTimerEl.hidden = true;
+      turnTimerEl.classList.remove('urgent');
+    }
+    lastBeepSec = -1;
+  }
+
+  function startOrSyncTurnTimer(turnStartedAt){
+    if(Game.mode !== 'online' || Game.finished){
+      stopTurnTimer();
+      return;
+    }
+    const baseMs = typeof turnStartedAt === 'number' ? turnStartedAt : Date.now();
+    // Se mudou de turno, reinicia referência
+    if(Math.abs(baseMs - currentTurnStartMs) > 500){
+      currentTurnStartMs = baseMs;
+      lastBeepSec = -1;
+    }
+    if(turnTimerEl) turnTimerEl.hidden = false;
+
+    const tick = () => {
+      if(Game.mode !== 'online' || Game.finished){
+        stopTurnTimer();
+        return;
+      }
+      const elapsedSec = Math.floor((Date.now() - currentTurnStartMs) / 1000);
+      const remaining = Math.max(0, TURN_LIMIT_SEC - elapsedSec);
+      if(turnTimerValEl) turnTimerValEl.textContent = `${remaining}s`;
+      if(turnTimerEl) turnTimerEl.classList.toggle('urgent', remaining <= 5);
+
+      if(remaining <= 5 && remaining > 0 && remaining !== lastBeepSec){
+        lastBeepSec = remaining;
+        SFX._tone(880, 'sine', 0.05, 0, 0.08);
+      }
+
+      if(remaining <= 0){
+        stopTurnTimer();
+        // Se era a vez do oponente (ou ANY e eu estou ativo na tela), declaro vitória por inatividade
+        if(document.visibilityState === 'visible' && Game.current !== Online.myMark){
+          Online.claimInactivityWin();
+        }
+      }
+    };
+
+    tick();
+    if(!onlineTimerInterval){
+      onlineTimerInterval = setInterval(tick, 250);
+    }
+  }
 
   /* ===== Online: aplicar estado do Firebase no jogo ===== */
   let lastOnlineBoardStr = '';
@@ -1646,7 +1788,7 @@ button{cursor:pointer}
     lastOnlineStatus = d.status || '';
 
     Game.board    = newBoard;
-    Game.current  = d.currentTurn || 'X';
+    Game.current  = d.currentTurn || 'ANY';
     Game.finished = d.status === 'finished';
     Game.winner   = d.winner ? { player: d.winner, combo: d.winCombo||[] } : null;
     Game.isDraw   = d.isDraw || false;
@@ -1663,10 +1805,19 @@ button{cursor:pointer}
 
     render();
 
+    if(d.status === 'playing'){
+      startOrSyncTurnTimer(d.turnStartedAt);
+    } else {
+      stopTurnTimer();
+    }
+
     if(Game.finished && prevStatus !== 'finished'){
       if(Game.winner){
         const mine = Game.winner.player === Online.myMark;
-        const msg = mine ? '🎉 Você venceu!' : '😞 Oponente venceu!';
+        const byTimeout = d.winReason === 'timeout';
+        const msg = byTimeout
+          ? (mine ? '⏱ Oponente inativo! Você venceu!' : '⏱ Tempo esgotado! Você perdeu por inatividade.')
+          : (mine ? '🎉 Você venceu!' : '😞 Oponente venceu!');
         showMessage(msg, Game.winner.player==='X' ? 'win-x' : 'win-o');
         if(mine){
           SFX.win();
@@ -1676,9 +1827,13 @@ button{cursor:pointer}
         }
         resultTimer = setTimeout(() => {
           openResultModal({
-            trophy: mine ? '🏆' : '😤',
-            title: mine ? 'Você venceu!' : 'Oponente venceu!',
-            sub: mine ? 'Jogada de mestre! Bora mais uma?' : 'Quase lá! Pedir revanche agora?',
+            trophy: mine ? '🏆' : (byTimeout ? '⏰' : '😤'),
+            title: mine
+              ? (byTimeout ? 'Vitória por W.O.!' : 'Você venceu!')
+              : (byTimeout ? 'Tempo esgotado!' : 'Oponente venceu!'),
+            sub: mine
+              ? (byTimeout ? 'O adversário ficou inativo. Na revanche você começa!' : 'Jogada de mestre! Na revanche você começa!')
+              : (byTimeout ? 'Você ficou inativo na rodada. Quer pedir revanche?' : 'Quase lá! Pedir revanche agora?'),
             theme: Game.winner.player === 'X' ? 'win-x' : 'win-o'
           });
         }, 650);
@@ -1689,7 +1844,7 @@ button{cursor:pointer}
           openResultModal({
             trophy: '🤝',
             title: 'Deu Velha!',
-            sub: 'Partida disputada! Vamos desempatar?',
+            sub: 'Partida disputada! Na próxima, quem apertar primeiro começa!',
             theme: 'draw'
           });
         }, 550);
@@ -1708,6 +1863,7 @@ button{cursor:pointer}
   }
 
   function leaveOnlineGame(deleteRoom = true){
+    stopTurnTimer();
     Online.stopListening();
     Online.leave(deleteRoom);
     Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
