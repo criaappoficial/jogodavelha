@@ -600,12 +600,15 @@ button{cursor:pointer}
       <div class="room-code-box">
         <span class="room-code-hint">Código da sala</span>
         <span class="room-code-val" id="waitingCode">------</span>
-        <button class="btn" id="copyCodeBtn" style="width:100%">📋 Copiar código</button>
+        <div style="display:flex;gap:.5rem;width:100%">
+          <button class="btn" id="copyCodeBtn" style="flex:1">📋 Copiar código</button>
+          <button class="btn btn-primary" id="shareCodeBtn" style="flex:1">📤 Enviar convite</button>
+        </div>
       </div>
       <p style="font-size:.8rem;color:var(--text-muted);margin:0">
-        Envie este código para seu amigo. O jogo começa quando ele entrar.
+        Pode minimizar o app para enviar o código — a sala continuará aberta esperando seu amigo!
       </p>
-      <button class="btn btn-ghost" id="cancelWaitBtn" style="width:100%">Cancelar</button>
+      <button class="btn btn-ghost" id="cancelWaitBtn" style="width:100%">Cancelar sala</button>
     </div>
   </div>
 </div>
@@ -1455,6 +1458,8 @@ button{cursor:pointer}
     }
   }
 
+  const ONLINE_SESSION_KEY = 'jogoDaVelha.activeRoom';
+
   const Online = {
     db: null, roomRef: null,
     roomId: null, myMark: null, myUid: null,
@@ -1467,6 +1472,36 @@ button{cursor:pointer}
       this.db = firebase.database();
       this.myUid = getOrCreatePlayerId();
       this.initialized = true;
+    },
+
+    _saveSession(){
+      try{
+        if(!this.roomId) return;
+        localStorage.setItem(ONLINE_SESSION_KEY, JSON.stringify({
+          roomId: this.roomId,
+          myMark: this.myMark,
+          isHost: this.isHost,
+          savedAt: Date.now()
+        }));
+      }catch(e){}
+    },
+
+    _clearSession(){
+      try{ localStorage.removeItem(ONLINE_SESSION_KEY); }catch(e){}
+    },
+
+    _loadSession(){
+      try{
+        const raw = localStorage.getItem(ONLINE_SESSION_KEY);
+        if(!raw) return null;
+        const s = JSON.parse(raw);
+        // Expira após 2 horas
+        if(!s?.roomId || (Date.now() - (s.savedAt||0)) > 2 * 60 * 60 * 1000){
+          this._clearSession();
+          return null;
+        }
+        return s;
+      }catch(e){ return null; }
     },
 
     _genCode(){
@@ -1486,7 +1521,10 @@ button{cursor:pointer}
         scoreX: 0, scoreO: 0, scoreD: 0,
         createdAt: firebase.database.ServerValue.TIMESTAMP
       });
-      this.roomRef.onDisconnect().remove();
+      // IMPORTANTE: NÃO usamos onDisconnect().remove() aqui!
+      // No celular, minimizar o navegador/PWA para mandar o código no WhatsApp
+      // derruba o WebSocket em poucos segundos e apagaria a sala antes do amigo entrar.
+      this._saveSession();
       return code;
     },
 
@@ -1498,11 +1536,43 @@ button{cursor:pointer}
       const snap = await ref.once('value');
       if(!snap.exists()) throw new Error('Sala não encontrada');
       const d = snap.val();
-      if(d.status !== 'waiting' || d.guestUid) throw new Error('Sala já está cheia ou em jogo');
+      // Permite reconectar se for o próprio host ou guest voltando
+      if(d.hostUid === this.myUid){
+        this.roomId = code; this.myMark = 'X'; this.isHost = true;
+        this.roomRef = ref;
+        this._saveSession();
+        return code;
+      }
+      if(d.guestUid && d.guestUid !== this.myUid){
+        throw new Error('Sala já está cheia ou em jogo');
+      }
       this.roomId = code; this.myMark = 'O'; this.isHost = false;
       this.roomRef = ref;
       await ref.update({ guestUid: this.myUid, status: 'playing' });
+      this._saveSession();
       return code;
+    },
+
+    async resumeSession(){
+      const saved = this._loadSession();
+      if(!saved) return null;
+      await this.init();
+      const ref = this.db.ref(`rooms/${saved.roomId}`);
+      const snap = await ref.once('value');
+      if(!snap.exists()){
+        this._clearSession();
+        return null;
+      }
+      const d = snap.val();
+      if(d.hostUid !== this.myUid && d.guestUid !== this.myUid){
+        this._clearSession();
+        return null;
+      }
+      this.roomId = saved.roomId;
+      this.isHost = d.hostUid === this.myUid;
+      this.myMark = this.isHost ? 'X' : 'O';
+      this.roomRef = ref;
+      return { code: this.roomId, data: d };
     },
 
     async makeMove(index){
@@ -1532,12 +1602,19 @@ button{cursor:pointer}
       });
     },
 
-    listen(cb){ if(this.roomRef) this.roomRef.on('value', s=>cb(s.exists()?s.val():null)); },
+    listen(cb){
+      if(!this.roomRef) return;
+      this.roomRef.off();
+      this.roomRef.on('value', s=>cb(s.exists()?s.val():null));
+    },
     stopListening(){ if(this.roomRef) this.roomRef.off(); },
 
-    async leave(){
+    async leave(deleteRoom = true){
       this.stopListening();
-      if(this.isHost && this.roomRef) await this.roomRef.remove();
+      this._clearSession();
+      if(deleteRoom && this.isHost && this.roomRef){
+        try{ await this.roomRef.remove(); }catch(e){}
+      }
       this.roomRef = null; this.roomId = null;
       this.myMark = null; this.isHost = false;
     }
@@ -1630,9 +1707,9 @@ button{cursor:pointer}
     showMessage('');
   }
 
-  function leaveOnlineGame(){
+  function leaveOnlineGame(deleteRoom = true){
     Online.stopListening();
-    Online.leave();
+    Online.leave(deleteRoom);
     Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
     if(Game.mode === 'online') Game.mode = 'pvp';
     state.mode = Game.mode;
@@ -1675,6 +1752,37 @@ button{cursor:pointer}
   document.getElementById('cancelOnlineBtn').addEventListener('click', closeOnlineModal);
   document.getElementById('cancelOnlineBtn2').addEventListener('click', closeOnlineModal);
 
+  function attachRoomListener(){
+    Online.listen(d => {
+      if(!d){
+        waitingModal.hidden = true;
+        if(Game.mode === 'online'){
+          leaveOnlineGame(false);
+          showMessage('A sala foi encerrada.', '');
+        }
+        return;
+      }
+      if(d.status === 'waiting'){
+        waitingCode.textContent = Online.roomId;
+        waitingModal.hidden = false;
+        return;
+      }
+      if(d.status === 'playing' && d.guestUid){
+        if(!waitingModal.hidden){
+          waitingModal.hidden = true;
+          enterOnlineGame(d);
+        } else if(Game.mode !== 'online'){
+          enterOnlineGame(d);
+        } else {
+          applyOnlineState(d);
+        }
+      } else {
+        if(Game.mode !== 'online') enterOnlineGame(d);
+        else applyOnlineState(d);
+      }
+    });
+  }
+
   document.getElementById('createRoomBtn').addEventListener('click', async ()=>{
     const btn = document.getElementById('createRoomBtn');
     btn.disabled = true; btn.textContent = 'Criando…';
@@ -1683,16 +1791,7 @@ button{cursor:pointer}
       closeOnlineModal();
       waitingCode.textContent = code;
       waitingModal.hidden = false;
-      Online.listen(d=>{
-        if(!d){ waitingModal.hidden = true; return; }
-        if(d.status === 'playing' && d.guestUid){
-          waitingModal.hidden = true;
-          enterOnlineGame(d);
-          // Continua ouvindo mudanças de estado
-        } else if(d.status !== 'waiting'){
-          applyOnlineState(d);
-        }
-      });
+      attachRoomListener();
     } catch(e){
       alert('Erro: ' + e.message);
     } finally {
@@ -1709,16 +1808,15 @@ button{cursor:pointer}
     try{
       await Online.joinRoom(code);
       closeOnlineModal();
-      Online.listen(d=>{
-        if(!d){
-          leaveOnlineGame();
-          alert('O host saiu da sala. Jogo encerrado.');
-          return;
-        }
-        applyOnlineState(d);
-      });
       const snap = await Online.roomRef.once('value');
-      enterOnlineGame(snap.val());
+      const val = snap.val();
+      if(val && val.status === 'waiting'){
+        waitingCode.textContent = Online.roomId;
+        waitingModal.hidden = false;
+      } else if(val){
+        enterOnlineGame(val);
+      }
+      attachRoomListener();
     } catch(e){
       joinError.textContent = e.message;
     } finally {
@@ -1733,15 +1831,88 @@ button{cursor:pointer}
   document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
     const code = waitingCode.textContent;
     const btn = document.getElementById('copyCodeBtn');
+    SFX.click();
     navigator.clipboard.writeText(code)
       .then(()=>{ btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='📋 Copiar código',2000); })
       .catch(()=>prompt('Copie o código:',code));
   });
 
+  document.getElementById('shareCodeBtn').addEventListener('click', async ()=>{
+    const code = waitingCode.textContent;
+    SFX.click();
+    const shareUrl = `${window.location.origin}/?room=${code}`;
+    const shareText = `Vem jogar Jogo da Velha comigo! Código da sala: ${code}`;
+    if(navigator.share){
+      try{
+        await navigator.share({ title: 'Jogo da Velha Online', text: shareText, url: shareUrl });
+        return;
+      }catch(e){}
+    }
+    navigator.clipboard.writeText(`${shareText} — ${shareUrl}`)
+      .then(()=>{
+        const btn = document.getElementById('shareCodeBtn');
+        btn.textContent = '✅ Link copiado!';
+        setTimeout(()=>btn.textContent='📤 Enviar convite', 2000);
+      });
+  });
+
   document.getElementById('cancelWaitBtn').addEventListener('click', async ()=>{
+    SFX.click();
     Online.stopListening();
-    await Online.leave();
+    await Online.leave(true);
     waitingModal.hidden = true;
+  });
+
+  // Reconexão automática ao voltar do WhatsApp / segundo plano no celular
+  async function checkAndResumeOnline(){
+    try{
+      if(Online.roomId && Online.roomRef){
+        if(Online.db && Online.db.goOnline) Online.db.goOnline();
+        const snap = await Online.roomRef.once('value');
+        if(!snap.exists()){
+          waitingModal.hidden = true;
+          Online._clearSession();
+          if(Game.mode === 'online') leaveOnlineGame(false);
+          return;
+        }
+        const d = snap.val();
+        if(d.status === 'waiting'){
+          waitingCode.textContent = Online.roomId;
+          waitingModal.hidden = false;
+        } else {
+          waitingModal.hidden = true;
+          if(Game.mode !== 'online') enterOnlineGame(d);
+          else applyOnlineState(d);
+        }
+        attachRoomListener();
+        return;
+      }
+      const resumed = await Online.resumeSession();
+      if(!resumed) return;
+      const { code, data } = resumed;
+      if(data.status === 'waiting'){
+        waitingCode.textContent = code;
+        waitingModal.hidden = false;
+      } else {
+        waitingModal.hidden = true;
+        enterOnlineGame(data);
+      }
+      attachRoomListener();
+    }catch(e){
+      console.warn('Falha ao retomar sala online:', e);
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible'){
+      checkAndResumeOnline();
+    }
+  });
+  window.addEventListener('pageshow', () => {
+    checkAndResumeOnline();
+  });
+  window.addEventListener('focus', () => {
+    if(Online.roomId) checkAndResumeOnline();
   });
 
   document.getElementById('drawerOnline').addEventListener('click', ()=>{
@@ -1925,11 +2096,24 @@ button{cursor:pointer}
 
   init();
 
-  // Atalhos de URL do PWA (?online=1)
-  try{
-    const params = new URLSearchParams(window.location.search);
-    if(params.get('online') === '1') openOnlineModal();
-  }catch(e){}
+  // Retoma sessão online ativa ou trata atalhos de URL (?room=CODIGO ou ?online=1)
+  window.addEventListener('load', () => {
+    try{
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get('room');
+      if(roomParam){
+        openOnlineModal();
+        switchOnlineTab('entrar');
+        codeInput.value = roomParam.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6);
+        return;
+      }
+      if(params.get('online') === '1'){
+        openOnlineModal();
+        return;
+      }
+      checkAndResumeOnline();
+    }catch(e){}
+  });
 })();
 </script>
 
