@@ -1,5 +1,25 @@
 {
+  "auth": {
+    "providers": {
+      "anonymous": true,
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Jogo da Velha Online",
+        "supportEmail": "criaappoficial@gmail.com",
+        "authorizedRedirectUris": [
+          "https://jogodavelha-online-app.firebaseapp.com/__/auth/handler",
+          "http://localhost:8080"
+        ]
+      }
+    }
+  },
   "database": {
     "rules": "database.rules.json"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "database": "(default)",
+    "location": "nam5"
   }
 }

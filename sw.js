@@ -3,7 +3,7 @@
    Estratégia: Cache-First para assets, Network-First para HTML
    ============================================================ */
 
-const CACHE_NAME = 'jogodavelha-v7';
+const CACHE_NAME = 'jogodavelha-v10';
 const ASSETS = [
   '/',
   '/index.html',
@@ -44,19 +44,34 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-/* ===== FETCH — Cache-First com fallback para rede ===== */
+/* ===== FETCH — Network-First para HTML, Cache-First para assets ===== */
 self.addEventListener('fetch', (event) => {
-  // Ignora requisições não-GET e cross-origin
+  // Ignora requisições não-GET e cross-origin (Firebase Auth, Firestore, RTDB, Google Photos)
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+
+  // Network-First para documento HTML principal
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('/index.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            const toCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, toCache));
+          }
+          return response;
+        })
+        .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
 
       return fetch(event.request).then((response) => {
-        // Só cacheia respostas válidas
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
@@ -65,11 +80,6 @@ self.addEventListener('fetch', (event) => {
           cache.put(event.request, toCache);
         });
         return response;
-      }).catch(() => {
-        // Offline fallback: retorna o HTML principal
-        if (event.request.destination === 'document') {
-          return caches.match('/index.html');
-        }
       });
     })
   );

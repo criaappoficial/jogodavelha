@@ -1,0 +1,214 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: users
+// Document ID: {userId} (matches Firebase Auth request.auth.uid)
+// Fields:
+//   - uid: string (required, immutable, == userId) - User's unique Auth ID
+//   - displayName: string (required, 1..100 chars) - Public display name
+//   - photoURL: string | null (optional, <= 500 chars) - Avatar URL
+//   - email: string | null (optional, <= 254 chars) - User email if provided
+//   - status: string (optional, <= 32 chars) - Availability ('online', 'busy', 'playing', 'offline')
+//   - currentRoomId: string | null (optional, <= 64 chars) - Active room code
+//   - wins: number (optional, >= 0) - Total online wins
+//   - losses: number (optional, >= 0) - Total online losses
+//   - draws: number (optional, >= 0) - Total online draws
+//   - matchesPlayed: number (optional, >= 0) - Total online matches played
+//   - lastSeen: timestamp | number (optional) - Last presence heartbeat
+//   - updatedAt: timestamp | number (optional) - Last profile update timestamp
+//   - createdAt: timestamp | number (optional) - Profile creation timestamp
+//
+// Collection: invites
+// Document ID: {inviteId}
+// Fields:
+//   - fromUid: string (required, immutable, == request.auth.uid on create) - Sender UID
+//   - toUid: string (required, immutable, != fromUid) - Recipient UID
+//   - status: string (required, in ['pending', 'accepted', 'declined', 'expired', 'cancelled'])
+//   - fromName: string | null (optional, <= 100 chars) - Sender display name
+//   - fromPhoto: string | null (optional, <= 500 chars) - Sender avatar URL
+//   - toName: string | null (optional, <= 100 chars) - Recipient display name
+//   - roomId: string | null (optional, <= 64 chars) - Shared RTDB room code when accepted
+//   - createdAt: timestamp | number (optional) - Creation timestamp
+//   - expiresAt: timestamp | number (optional) - Expiration timestamp (+30s TTL)
+//   - updatedAt: timestamp | number (optional) - Last status transition timestamp
+//
+// Collection: matches
+// Document ID: {matchId}
+// Fields:
+//   - playerXUid: string (required, immutable, 1..128 chars) - Player X UID
+//   - playerOUid: string (required, immutable, 1..128 chars) - Player O UID
+//   - playerXName: string | null (optional, <= 100 chars) - Player X display name
+//   - playerOName: string | null (optional, <= 100 chars) - Player O display name
+//   - winner: string | null (optional, <= 128 chars) - Winner symbol ('X', 'O', 'draw') or UID
+//   - winnerUid: string | null (optional, <= 128 chars) - Winner UID if any
+//   - roomId: string | null (optional, <= 64 chars) - Associated RTDB room ID
+//   - createdAt: timestamp | number (optional) - Match start/record timestamp
+//   - endedAt: timestamp | number (optional) - Match completion timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isOptionalString(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isOptionalNonNegativeNumber(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is number && data[field] >= 0);
+    }
+
+    function isOptionalTime(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is timestamp ||
+             data[field] is number;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data, userId) {
+      return data.uid is string &&
+             data.uid == userId &&
+             data.displayName is string &&
+             data.displayName.size() >= 1 &&
+             data.displayName.size() <= 100 &&
+             isOptionalString(data, 'photoURL', 500) &&
+             isOptionalString(data, 'email', 254) &&
+             isOptionalString(data, 'status', 32) &&
+             isOptionalString(data, 'currentRoomId', 64) &&
+             isOptionalNonNegativeNumber(data, 'wins') &&
+             isOptionalNonNegativeNumber(data, 'losses') &&
+             isOptionalNonNegativeNumber(data, 'draws') &&
+             isOptionalNonNegativeNumber(data, 'matchesPlayed') &&
+             isOptionalTime(data, 'lastSeen') &&
+             isOptionalTime(data, 'updatedAt') &&
+             isOptionalTime(data, 'createdAt');
+    }
+
+    function isValidInvite(data) {
+      return data.fromUid is string &&
+             data.fromUid.size() >= 1 &&
+             data.fromUid.size() <= 128 &&
+             data.toUid is string &&
+             data.toUid.size() >= 1 &&
+             data.toUid.size() <= 128 &&
+             data.toUid != data.fromUid &&
+             data.status is string &&
+             data.status in ['pending', 'accepted', 'declined', 'expired', 'cancelled'] &&
+             isOptionalString(data, 'fromName', 100) &&
+             isOptionalString(data, 'fromPhoto', 500) &&
+             isOptionalString(data, 'fromPhotoURL', 500) &&
+             isOptionalString(data, 'toName', 100) &&
+             isOptionalString(data, 'toPhoto', 500) &&
+             isOptionalString(data, 'toPhotoURL', 500) &&
+             isOptionalString(data, 'roomId', 64) &&
+             isOptionalString(data, 'roomCode', 64) &&
+             isOptionalTime(data, 'createdAt') &&
+             isOptionalTime(data, 'expiresAt') &&
+             isOptionalTime(data, 'updatedAt');
+    }
+
+    function isValidMatch(data) {
+      return data.playerXUid is string &&
+             data.playerXUid.size() >= 1 &&
+             data.playerXUid.size() <= 128 &&
+             data.playerOUid is string &&
+             data.playerOUid.size() >= 1 &&
+             data.playerOUid.size() <= 128 &&
+             isOptionalString(data, 'playerXName', 100) &&
+             isOptionalString(data, 'playerOName', 100) &&
+             isOptionalString(data, 'playerXPhoto', 500) &&
+             isOptionalString(data, 'playerOPhoto', 500) &&
+             isOptionalString(data, 'winner', 128) &&
+             isOptionalString(data, 'winnerUid', 128) &&
+             isOptionalString(data, 'result', 32) &&
+             isOptionalString(data, 'roomId', 64) &&
+             isOptionalString(data, 'roomCode', 64) &&
+             isOptionalTime(data, 'createdAt') &&
+             isOptionalTime(data, 'endedAt') &&
+             isOptionalTime(data, 'updatedAt');
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow get, list: if true;
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data, userId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /invites/{inviteId} {
+      allow get, list: if isAuthenticated() &&
+                       (resource.data.fromUid == request.auth.uid ||
+                        resource.data.toUid == request.auth.uid);
+
+      allow create: if isAuthenticated() &&
+                    request.resource.data.fromUid == request.auth.uid &&
+                    request.resource.data.toUid is string &&
+                    request.resource.data.toUid != request.auth.uid &&
+                    request.resource.data.status == 'pending' &&
+                    isValidInvite(request.resource.data);
+
+      allow update: if isAuthenticated() &&
+                    (resource.data.fromUid == request.auth.uid ||
+                     resource.data.toUid == request.auth.uid) &&
+                    request.resource.data.fromUid == resource.data.fromUid &&
+                    request.resource.data.toUid == resource.data.toUid &&
+                    request.resource.data.status in ['pending', 'accepted', 'declined', 'expired', 'cancelled'] &&
+                    isValidInvite(request.resource.data);
+
+      allow delete: if isAuthenticated() &&
+                    (resource.data.fromUid == request.auth.uid ||
+                     resource.data.toUid == request.auth.uid);
+    }
+
+    match /matches/{matchId} {
+      allow get, list: if isAuthenticated();
+
+      allow create: if isAuthenticated() &&
+                    (request.resource.data.playerXUid == request.auth.uid ||
+                     request.resource.data.playerOUid == request.auth.uid) &&
+                    isValidMatch(request.resource.data);
+
+      allow update: if isAuthenticated() &&
+                    (resource.data.playerXUid == request.auth.uid ||
+                     resource.data.playerOUid == request.auth.uid) &&
+                    request.resource.data.playerXUid == resource.data.playerXUid &&
+                    request.resource.data.playerOUid == resource.data.playerOUid &&
+                    isValidMatch(request.resource.data);
+
+      allow delete: if false;
+    }
+
+    // Default deny for any unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
