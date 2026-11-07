@@ -387,6 +387,43 @@ button{cursor:pointer}
   color:#f87171;border-color:#f87171;background:rgba(248,113,113,.15);
   animation:pulse 700ms ease infinite;
 }
+.turn-timer svg{width:14px;height:14px;flex-shrink:0}
+
+/* ===== ONLINE PRESENCE & PING BAR ===== */
+.online-status-bar{
+  width:100%;max-width:720px;
+  display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:.5rem .85rem;font-size:.8rem;color:var(--text-muted);
+}
+.online-status-bar[hidden]{display:none}
+.presence-indicator{display:inline-flex;align-items:center;gap:.45rem;font-weight:600;color:var(--text)}
+.presence-dot{
+  width:9px;height:9px;border-radius:50%;background:#4ade80;
+  box-shadow:0 0 8px rgba(74,222,128,.65);flex-shrink:0;
+}
+.presence-dot.away{background:var(--draw-color);box-shadow:none;animation:blink 1.2s ease infinite}
+.ping-btn{
+  display:inline-flex;align-items:center;gap:.35rem;
+  padding:.35rem .7rem;border-radius:8px;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text);
+  font-size:.76rem;font-weight:700;transition:var(--transition);
+}
+.ping-btn:hover,.ping-btn:focus-visible{border-color:var(--primary);color:var(--primary);outline:none}
+.ping-btn svg{width:14px;height:14px;flex-shrink:0}
+.ping-toast{
+  position:fixed;top:max(1rem,env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:120;display:inline-flex;align-items:center;gap:.5rem;
+  background:var(--primary);color:#fff;padding:.65rem 1.1rem;border-radius:999px;
+  font-size:.85rem;font-weight:700;box-shadow:var(--shadow);animation:pop 220ms ease;
+}
+.ping-toast[hidden]{display:none}
+.ping-toast svg{width:16px;height:16px;flex-shrink:0}
+.inline-icon{width:16px;height:16px;vertical-align:-3px;flex-shrink:0;display:inline-block}
+.result-trophy svg{width:64px;height:64px;display:block}
+.result-modal.win-x .result-trophy{color:var(--x-color)}
+.result-modal.win-o .result-trophy{color:var(--o-color)}
+.result-modal.draw .result-trophy{color:var(--draw-color)}
 
 /* ===== REDUCED MOTION ===== */
 @media (prefers-reduced-motion:reduce){
@@ -435,10 +472,18 @@ button{cursor:pointer}
     </div>
   </header>
 
+  <!-- Toast de sinalização online -->
+  <div class="ping-toast" id="pingToast" hidden role="status" aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span id="pingToastText">Oponente está online esperando sua jogada!</span>
+  </div>
+
   <!-- Banner de instalação do App (PWA) -->
   <div class="install-banner" id="installBanner" hidden>
     <div class="install-banner-info">
-      <div class="install-banner-icon" aria-hidden="true">📲</div>
+      <div class="install-banner-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+      </div>
       <div class="install-banner-text">
         <strong>Instalar Jogo da Velha</strong>
         <span>Jogue em tela cheia direto do celular</span>
@@ -446,8 +491,22 @@ button{cursor:pointer}
     </div>
     <div class="install-banner-actions">
       <button class="btn btn-primary btn-sm" id="installBannerBtn">Instalar</button>
-      <button class="icon-btn" id="dismissInstallBtn" aria-label="Fechar aviso" style="width:32px;height:32px">✕</button>
+      <button class="icon-btn" id="dismissInstallBtn" aria-label="Fechar aviso" style="width:32px;height:32px">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
     </div>
+  </div>
+
+  <!-- Barra de Presença Online + Sinalizar ao Oponente -->
+  <div class="online-status-bar" id="onlineStatusBar" hidden>
+    <span class="presence-indicator">
+      <span class="presence-dot" id="oppPresenceDot"></span>
+      <span id="oppPresenceText">Oponente online</span>
+    </span>
+    <button class="ping-btn" id="pingOpponentBtn" type="button" title="Avisar ao oponente que você está online">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span id="pingBtnLabel">Sinalizar presença</span>
+    </button>
   </div>
 
   <section class="scoreboard" aria-label="Placar">
@@ -467,7 +526,10 @@ button{cursor:pointer}
 
   <div class="turn-row">
     <p class="turn-indicator" id="turnIndicator" aria-live="polite">Vez de <strong class="x">X</strong></p>
-    <span class="turn-timer" id="turnTimer" hidden aria-live="off">⏱ <span id="turnTimerVal">20s</span></span>
+    <span class="turn-timer" id="turnTimer" hidden aria-live="off">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M10 2h4"/></svg>
+      <span id="turnTimerVal">20s</span>
+    </span>
   </div>
 
   <main id="main" class="board-wrapper">
@@ -550,12 +612,15 @@ button{cursor:pointer}
 <!-- ===== MODAL INSTRUÇÕES iOS ===== -->
 <div class="modal-overlay" id="iosInstallModal" role="dialog" aria-modal="true" aria-labelledby="iosInstallTitle" hidden>
   <div class="modal">
-    <h2 id="iosInstallTitle">📲 Instalar no iPhone / iPad</h2>
+    <h2 id="iosInstallTitle" style="display:flex;align-items:center;gap:.5rem">
+      <svg class="inline-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+      Instalar no iPhone / iPad
+    </h2>
     <p style="font-size:.88rem;color:var(--text-muted);margin:0">
       Para instalar o jogo na tela inicial do seu iPhone:
     </p>
     <div class="ios-steps">
-      <div><span class="ios-step-num">1</span><span>Toque no botão <strong>Compartilhar</strong> (ícone de quadrado com seta ⬆️) no Safari.</span></div>
+      <div><span class="ios-step-num">1</span><span>Toque no botão <strong>Compartilhar</strong> no Safari.</span></div>
       <div><span class="ios-step-num">2</span><span>Role para baixo e toque em <strong>Adicionar à Tela de Início</strong>.</span></div>
       <div><span class="ios-step-num">3</span><span>Toque em <strong>Adicionar</strong> no canto superior direito.</span></div>
     </div>
@@ -566,7 +631,7 @@ button{cursor:pointer}
 <!-- ===== MODAL RESULTADO / JOGAR DE NOVO ===== -->
 <div class="modal-overlay" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultTitle" hidden>
   <div class="modal result-modal" id="resultModalCard">
-    <div class="result-trophy" id="resultTrophy" aria-hidden="true">🏆</div>
+    <div class="result-trophy" id="resultTrophy" aria-hidden="true"></div>
     <h2 class="result-title" id="resultTitle">Vitória!</h2>
     <p class="result-sub" id="resultSub">Que partida incrível! Quer jogar mais uma?</p>
     <div class="result-score-mini" aria-label="Placar atual">
@@ -574,7 +639,10 @@ button{cursor:pointer}
       <div><span>Empates</span><strong class="sd" id="resScoreD">0</strong></div>
       <div><span>O</span><strong class="so" id="resScoreO">0</strong></div>
     </div>
-    <button class="btn btn-primary btn-lg" id="playAgainBtn">🔄 Jogar de novo</button>
+    <button class="btn btn-primary btn-lg" id="playAgainBtn" style="gap:.5rem">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Jogar de novo
+    </button>
     <button class="btn btn-ghost" id="closeResultBtn" style="width:100%">Ver tabuleiro</button>
   </div>
 </div>
@@ -582,7 +650,10 @@ button{cursor:pointer}
 <!-- ===== MODAL ONLINE ===== -->
 <div class="modal-overlay" id="onlineModal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle" hidden>
   <div class="modal">
-    <h2 id="onlineTitle">🌐 Jogar Online</h2>
+    <h2 id="onlineTitle" style="display:flex;align-items:center;gap:.5rem">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Jogar Online
+    </h2>
     <div class="online-tabs" role="tablist">
       <button class="tab-btn active" id="tabCriar" role="tab" aria-selected="true" aria-controls="panelCriar">Criar sala</button>
       <button class="tab-btn" id="tabEntrar" role="tab" aria-selected="false" aria-controls="panelEntrar">Entrar em sala</button>
@@ -622,8 +693,14 @@ button{cursor:pointer}
         <span class="room-code-hint">Código da sala</span>
         <span class="room-code-val" id="waitingCode">------</span>
         <div style="display:flex;gap:.5rem;width:100%">
-          <button class="btn" id="copyCodeBtn" style="flex:1">📋 Copiar código</button>
-          <button class="btn btn-primary" id="shareCodeBtn" style="flex:1">📤 Enviar convite</button>
+          <button class="btn" id="copyCodeBtn" style="flex:1;gap:.4rem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span id="copyCodeLabel">Copiar código</span>
+          </button>
+          <button class="btn btn-primary" id="shareCodeBtn" style="flex:1;gap:.4rem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></svg>
+            <span id="shareCodeLabel">Enviar convite</span>
+          </button>
         </div>
       </div>
       <p style="font-size:.8rem;color:var(--text-muted);margin:0">
@@ -806,6 +883,17 @@ button{cursor:pointer}
       // Dois tons neutros de empate
       this._tone(440, 'triangle', 0.14, 0, 0.15);
       this._tone(392, 'triangle', 0.24, 0.14, 0.15);
+    },
+
+    ping(){
+      // Sinal sonoro de presença (dois sinos cristalinos)
+      this._tone(587.33, 'sine', 0.12, 0, 0.18, 880);
+      this._tone(880, 'triangle', 0.18, 0.10, 0.20, 1174.66);
+    },
+
+    blocked(){
+      // Toque curto indicando ação bloqueada
+      this._tone(240, 'sawtooth', 0.09, 0, 0.12, 180);
     },
 
     toggleMute(){
@@ -1111,6 +1199,17 @@ button{cursor:pointer}
     }
   }
 
+  /* ===== Ícones SVG Line (Lucide style) ===== */
+  const ICONS = {
+    zap: '<svg class="inline-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
+    globe: '<svg class="inline-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
+    trophy: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
+    bot: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>',
+    handshake: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg>',
+    frown: '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M16 16s-1.5-2-4-2-4 2-4 2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>'
+  };
+
   /* ===== Render ===== */
   function render(){
     // Tabuleiro
@@ -1157,7 +1256,7 @@ button{cursor:pointer}
       els.turn.innerHTML = `Computador pensando…`;
     } else if(Game.mode === 'online'){
       if(Game.current === 'ANY'){
-        els.turn.innerHTML = `⚡ <strong>Quem apertar primeiro começa!</strong> (Você é <strong class="${Online.myMark === 'X' ? 'x' : 'o'}">${Online.myMark}</strong>)`;
+        els.turn.innerHTML = `${ICONS.zap} <strong>Quem apertar primeiro começa!</strong> (Você é <strong class="${Online.myMark === 'X' ? 'x' : 'o'}">${Online.myMark}</strong>)`;
       } else {
         const isMyTurn = Online.myMark === Game.current;
         els.turn.innerHTML = isMyTurn
@@ -1179,7 +1278,7 @@ button{cursor:pointer}
     els.scoreD.classList.remove('active');
 
     // Badge de modo
-    if(Game.mode === 'online') els.modeBadge.textContent = '🌐 Online';
+    if(Game.mode === 'online') els.modeBadge.innerHTML = `${ICONS.globe} Online`;
     else els.modeBadge.textContent = Game.mode === 'pve' ? 'Vs Computador' : '2 Jogadores';
   }
 
@@ -1207,9 +1306,9 @@ button{cursor:pointer}
   const closeResultBtn  = document.getElementById('closeResultBtn');
   let resultTimer = null;
 
-  function openResultModal({ trophy, title, sub, theme }){
+  function openResultModal({ icon, title, sub, theme }){
     if(resultTimer) clearTimeout(resultTimer);
-    resultTrophy.textContent = trophy;
+    resultTrophy.innerHTML = ICONS[icon] || ICONS.trophy;
     resultTitle.textContent = title;
     resultSub.textContent = sub;
     resultModalCard.className = 'modal result-modal ' + (theme || '');
@@ -1269,7 +1368,7 @@ button{cursor:pointer}
 
       resultTimer = setTimeout(() => {
         openResultModal({
-          trophy: isPlayerWin ? '🏆' : '🤖',
+          icon: isPlayerWin ? 'trophy' : 'bot',
           title: titleText,
           sub: subText,
           theme: result.player === 'X' ? 'win-x' : 'win-o'
@@ -1282,7 +1381,7 @@ button{cursor:pointer}
       SFX.draw();
       resultTimer = setTimeout(() => {
         openResultModal({
-          trophy: '🤝',
+          icon: 'handshake',
           title: 'Deu Velha!',
           sub: 'Ninguém cedeu! Vamos desempatar agora?',
           theme: 'draw'
@@ -1349,11 +1448,17 @@ button{cursor:pointer}
 
   /* ===== Controles ===== */
   function startNewGame(){
-    closeResultModal();
     if(Game.mode === 'online'){
+      if(!Game.finished){
+        SFX.blocked();
+        showMessage('Partida online em andamento! Termine a rodada antes de iniciar outra.', '');
+        return;
+      }
+      closeResultModal();
       Online.resetGame();
       return;
     }
+    closeResultModal();
     Game.reset(Game.mode, Game.firstPlayer);
     SFX.start();
     showMessage('');
@@ -1666,7 +1771,8 @@ button{cursor:pointer}
     async resetGame(){
       if(!this.roomRef) return;
       await this.roomRef.transaction(d => {
-        if(!d) return;
+        // Não permite reiniciar se a partida ainda estiver em andamento
+        if(!d || d.status !== 'finished') return;
         // Na revanche, quem ganhou a partida anterior começa; se empatou, quem apertar primeiro começa
         const nextStarter = (d.lastWinner === 'X' || d.lastWinner === 'O') ? d.lastWinner : 'ANY';
         d.board = Array(9).fill('');
@@ -1677,7 +1783,29 @@ button{cursor:pointer}
         d.isDraw = false;
         d.winReason = null;
         d.turnStartedAt = firebase.database.ServerValue.TIMESTAMP;
+        if(this.myMark === 'X') d.hostHeartbeat = firebase.database.ServerValue.TIMESTAMP;
+        else d.guestHeartbeat = firebase.database.ServerValue.TIMESTAMP;
         return d;
+      });
+    },
+
+    async sendHeartbeat(){
+      if(!this.roomRef || !this.myMark) return;
+      try{
+        const field = this.myMark === 'X' ? 'hostHeartbeat' : 'guestHeartbeat';
+        await this.roomRef.update({ [field]: firebase.database.ServerValue.TIMESTAMP });
+      }catch(e){}
+    },
+
+    async sendPing(){
+      if(!this.roomRef || !this.myMark) return;
+      const field = this.myMark === 'X' ? 'hostHeartbeat' : 'guestHeartbeat';
+      await this.roomRef.update({
+        [field]: firebase.database.ServerValue.TIMESTAMP,
+        lastPing: {
+          by: this.myMark,
+          at: firebase.database.ServerValue.TIMESTAMP
+        }
       });
     },
 
@@ -1762,6 +1890,82 @@ button{cursor:pointer}
     }
   }
 
+  /* ===== Online: Presença em tempo real e Sinalização (Ping) ===== */
+  const onlineStatusBar = document.getElementById('onlineStatusBar');
+  const oppPresenceDot  = document.getElementById('oppPresenceDot');
+  const oppPresenceText = document.getElementById('oppPresenceText');
+  const pingOpponentBtn = document.getElementById('pingOpponentBtn');
+  const pingBtnLabel    = document.getElementById('pingBtnLabel');
+  const pingToast       = document.getElementById('pingToast');
+  const pingToastText   = document.getElementById('pingToastText');
+
+  let heartbeatInterval = null;
+  let lastSeenPingAt    = 0;
+  let pingToastTimer    = null;
+  let pingCooldown      = false;
+  let lastOpponentHb    = 0;
+
+  function startPresenceHeartbeat(){
+    stopPresenceHeartbeat();
+    if(onlineStatusBar) onlineStatusBar.hidden = false;
+    Online.sendHeartbeat();
+    heartbeatInterval = setInterval(() => {
+      if(Game.mode === 'online' && document.visibilityState === 'visible'){
+        Online.sendHeartbeat();
+      }
+      refreshOpponentPresenceUI();
+    }, 8000);
+  }
+
+  function stopPresenceHeartbeat(){
+    if(heartbeatInterval){
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+    if(onlineStatusBar) onlineStatusBar.hidden = true;
+    if(pingToast) pingToast.hidden = true;
+  }
+
+  function refreshOpponentPresenceUI(){
+    if(!oppPresenceDot || !oppPresenceText) return;
+    const oppMark = Online.myMark === 'X' ? 'O' : 'X';
+    const ageMs = Date.now() - (lastOpponentHb || 0);
+    const isAway = lastOpponentHb > 0 && ageMs > 25000;
+    oppPresenceDot.classList.toggle('away', isAway);
+    oppPresenceText.textContent = isAway
+      ? `Oponente (${oppMark}) ausente / minimizado`
+      : `Oponente (${oppMark}) online na sala`;
+  }
+
+  function showPingToast(text){
+    if(!pingToast || !pingToastText) return;
+    if(pingToastTimer) clearTimeout(pingToastTimer);
+    pingToastText.textContent = text;
+    pingToast.hidden = false;
+    SFX.ping();
+    pingToastTimer = setTimeout(() => {
+      pingToast.hidden = true;
+    }, 3500);
+  }
+
+  if(pingOpponentBtn){
+    pingOpponentBtn.addEventListener('click', async () => {
+      if(pingCooldown || Game.mode !== 'online') return;
+      pingCooldown = true;
+      pingOpponentBtn.disabled = true;
+      SFX.ping();
+      if(pingBtnLabel) pingBtnLabel.textContent = 'Sinal enviado!';
+      try{
+        await Online.sendPing();
+      }catch(e){}
+      setTimeout(() => {
+        pingCooldown = false;
+        pingOpponentBtn.disabled = false;
+        if(pingBtnLabel) pingBtnLabel.textContent = 'Sinalizar presença';
+      }, 4000);
+    });
+  }
+
   /* ===== Online: aplicar estado do Firebase no jogo ===== */
   let lastOnlineBoardStr = '';
   let lastOnlineStatus = '';
@@ -1772,6 +1976,23 @@ button{cursor:pointer}
     const prevStatus = lastOnlineStatus;
     const newBoard = d.board ? d.board.slice() : Array(9).fill('');
     const newBoardStr = newBoard.join(',');
+
+    // Atualiza presença do oponente
+    const oppHb = Online.myMark === 'X' ? d.guestHeartbeat : d.hostHeartbeat;
+    if(typeof oppHb === 'number') lastOpponentHb = oppHb;
+    refreshOpponentPresenceUI();
+
+    // Verifica se o oponente enviou um sinal ("Estou online!")
+    if(d.lastPing && typeof d.lastPing.at === 'number'){
+      if(lastSeenPingAt === 0){
+        lastSeenPingAt = d.lastPing.at;
+      } else if(d.lastPing.at > lastSeenPingAt){
+        lastSeenPingAt = d.lastPing.at;
+        if(d.lastPing.by && d.lastPing.by !== Online.myMark){
+          showPingToast(`Oponente (${d.lastPing.by}) avisou: "Estou online esperando no jogo!"`);
+        }
+      }
+    }
 
     // Detecta nova jogada para tocar o som
     if(prevBoardStr && prevBoardStr !== newBoardStr){
@@ -1816,8 +2037,8 @@ button{cursor:pointer}
         const mine = Game.winner.player === Online.myMark;
         const byTimeout = d.winReason === 'timeout';
         const msg = byTimeout
-          ? (mine ? '⏱ Oponente inativo! Você venceu!' : '⏱ Tempo esgotado! Você perdeu por inatividade.')
-          : (mine ? '🎉 Você venceu!' : '😞 Oponente venceu!');
+          ? (mine ? 'Oponente inativo! Você venceu!' : 'Tempo esgotado! Você perdeu por inatividade.')
+          : (mine ? 'Você venceu!' : 'Oponente venceu!');
         showMessage(msg, Game.winner.player==='X' ? 'win-x' : 'win-o');
         if(mine){
           SFX.win();
@@ -1827,7 +2048,7 @@ button{cursor:pointer}
         }
         resultTimer = setTimeout(() => {
           openResultModal({
-            trophy: mine ? '🏆' : (byTimeout ? '⏰' : '😤'),
+            icon: mine ? 'trophy' : (byTimeout ? 'clock' : 'frown'),
             title: mine
               ? (byTimeout ? 'Vitória por W.O.!' : 'Você venceu!')
               : (byTimeout ? 'Tempo esgotado!' : 'Oponente venceu!'),
@@ -1842,7 +2063,7 @@ button{cursor:pointer}
         SFX.draw();
         resultTimer = setTimeout(() => {
           openResultModal({
-            trophy: '🤝',
+            icon: 'handshake',
             title: 'Deu Velha!',
             sub: 'Partida disputada! Na próxima, quem apertar primeiro começa!',
             theme: 'draw'
@@ -1856,14 +2077,18 @@ button{cursor:pointer}
     Game.mode = 'online';
     lastOnlineBoardStr = '';
     lastOnlineStatus = '';
+    lastSeenPingAt = (d && d.lastPing && typeof d.lastPing.at === 'number') ? d.lastPing.at : Date.now();
+    lastOpponentHb = Date.now();
     buildBoard();
     SFX.start();
+    startPresenceHeartbeat();
     applyOnlineState(d);
     showMessage('');
   }
 
   function leaveOnlineGame(deleteRoom = true){
     stopTurnTimer();
+    stopPresenceHeartbeat();
     Online.stopListening();
     Online.leave(deleteRoom);
     Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
@@ -1986,15 +2211,16 @@ button{cursor:pointer}
 
   document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
     const code = waitingCode.textContent;
-    const btn = document.getElementById('copyCodeBtn');
+    const label = document.getElementById('copyCodeLabel');
     SFX.click();
     navigator.clipboard.writeText(code)
-      .then(()=>{ btn.textContent='✅ Copiado!'; setTimeout(()=>btn.textContent='📋 Copiar código',2000); })
+      .then(()=>{ if(label){ label.textContent='Copiado!'; setTimeout(()=>label.textContent='Copiar código',2000); } })
       .catch(()=>prompt('Copie o código:',code));
   });
 
   document.getElementById('shareCodeBtn').addEventListener('click', async ()=>{
     const code = waitingCode.textContent;
+    const label = document.getElementById('shareCodeLabel');
     SFX.click();
     const shareUrl = `${window.location.origin}/?room=${code}`;
     const shareText = `Vem jogar Jogo da Velha comigo! Código da sala: ${code}`;
@@ -2006,9 +2232,10 @@ button{cursor:pointer}
     }
     navigator.clipboard.writeText(`${shareText} — ${shareUrl}`)
       .then(()=>{
-        const btn = document.getElementById('shareCodeBtn');
-        btn.textContent = '✅ Link copiado!';
-        setTimeout(()=>btn.textContent='📤 Enviar convite', 2000);
+        if(label){
+          label.textContent = 'Link copiado!';
+          setTimeout(()=>label.textContent='Enviar convite', 2000);
+        }
       });
   });
 
