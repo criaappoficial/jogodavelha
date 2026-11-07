@@ -10,6 +10,10 @@
           "https://jogodavelha-online-app.firebaseapp.com/__/auth/handler",
           "https://jogodavelha-mu-three.vercel.app",
           "https://jogodavelha-mu-three.vercel.app/__/auth/handler",
+          "https://jogodavelha-ghv7.vercel.app",
+          "https://jogodavelha-ghv7.vercel.app/__/auth/handler",
+          "https://jogodavelha.vercel.app",
+          "https://jogodavelha.vercel.app/__/auth/handler",
           "http://localhost:8080"
         ]
       }

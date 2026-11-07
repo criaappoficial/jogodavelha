@@ -43,6 +43,8 @@
 
 /* ===== RESET ===== */
 *,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+.auth-view{display:flex;flex-direction:column;gap:.85rem}
 html,body{margin:0;padding:0}
 body{
   font-family:var(--font);
@@ -1000,7 +1002,7 @@ html,body{overflow-x:hidden}
     </h2>
 
     <!-- Visão Deslogado -->
-    <div id="authLoggedOutView" style="display:flex;flex-direction:column;gap:.85rem">
+    <div id="authLoggedOutView" class="auth-view">
       <p style="font-size:.86rem;color:var(--text-muted);margin:0;line-height:1.45">
         Conecte sua conta Google para aparecer na lista de <strong>Membros Online</strong>, convidar jogadores em tempo real e salvar seu histórico de vitórias.
       </p>
@@ -1018,7 +1020,7 @@ html,body{overflow-x:hidden}
     </div>
 
     <!-- Visão Logado (Perfil + Estatísticas) -->
-    <div id="authLoggedInView" hidden style="display:flex;flex-direction:column;gap:.85rem">
+    <div id="authLoggedInView" class="auth-view" hidden>
       <div class="profile-box">
         <div class="avatar-wrap" id="profileAvatarWrap"></div>
         <p class="profile-name" id="profileName">Jogador</p>

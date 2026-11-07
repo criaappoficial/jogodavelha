@@ -3,7 +3,7 @@
    Estratégia: Cache-First para assets, Network-First para HTML
    ============================================================ */
 
-const CACHE_NAME = 'jogodavelha-v10';
+const CACHE_NAME = 'jogodavelha-v11';
 const ASSETS = [
   '/',
   '/index.html',
