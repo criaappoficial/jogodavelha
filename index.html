@@ -2693,13 +2693,17 @@ html,body{overflow-x:hidden}
     closeResultModal();
     stopTurnTimer();
     stopPresenceHeartbeat();
-    Online.stopListening();
-    Online.leave(deleteRoom);
     state = Storage.load();
     Game.mode = state.mode === 'online' ? 'pvp' : (state.mode||'pvp');
     if(Game.mode === 'online') Game.mode = 'pvp';
     state.mode = Game.mode;
     Storage.save(state);
+    if(typeof Community !== 'undefined'){
+      Community.clearOutgoingInviteWatch();
+      Community.syncPresenceState('online', null);
+    }
+    Online.stopListening();
+    Online.leave(deleteRoom);
     Game.reset(Game.mode, 'X');
     buildBoard(); render(); showMessage('Você saiu da partida online.', '');
   }
@@ -3113,6 +3117,7 @@ html,body{overflow-x:hidden}
     connectedRef: null,
     rtdbStatusMap: {},
     firestoreUsersMap: {},
+    activeRoomsMap: {},
     incomingInvitesUnsub: null,
     outgoingInviteUnsub: null,
     outgoingExpireTimer: null,
@@ -3302,7 +3307,15 @@ html,body{overflow-x:hidden}
 
     setupRealtimePresence(user){
       if(!Online.db || !user) return;
-      this.cleanupPresence();
+      if(this.connectedRef){
+        this.connectedRef.off();
+        this.connectedRef = null;
+      }
+
+      if(Game.mode !== 'online' || !Online.roomId){
+        this.presenceState = 'online';
+        this.presenceRoomId = null;
+      }
 
       const uid = user.uid;
       this.presenceRef = Online.db.ref(`status/${uid}`);
@@ -3310,6 +3323,8 @@ html,body{overflow-x:hidden}
 
       this.connectedRef.on('value', (snap) => {
         if(snap.val() === false) return;
+        const activeState = (Game.mode === 'online' && Online.roomId) ? (this.presenceState || 'playing') : 'online';
+        const activeRoom  = (Game.mode === 'online' && Online.roomId) ? Online.roomId : null;
         const offlinePayload = {
           state: 'offline',
           displayName: (user.displayName || 'Jogador').slice(0, 60),
@@ -3318,30 +3333,55 @@ html,body{overflow-x:hidden}
           lastChanged: firebase.database.ServerValue.TIMESTAMP
         };
         const onlinePayload = {
-          state: this.presenceState || 'online',
+          state: activeState,
           displayName: (user.displayName || 'Jogador').slice(0, 60),
           photoURL: (user.photoURL || '').slice(0, 500),
-          roomId: this.presenceRoomId || null,
+          roomId: activeRoom,
           lastChanged: firebase.database.ServerValue.TIMESTAMP
         };
-        this.presenceRef.onDisconnect().set(offlinePayload).then(() => {
-          this.presenceRef.set(onlinePayload);
-        }).catch(() => {});
+        if(this.presenceRef){
+          this.presenceRef.onDisconnect().set(offlinePayload).then(() => {
+            if(this.presenceRef) this.presenceRef.set(onlinePayload);
+          }).catch(() => {});
+        }
       });
     },
 
     async syncPresenceState(stateStr, roomId = null){
-      this.presenceState = stateStr || 'online';
-      this.presenceRoomId = roomId || null;
+      const nextState = (stateStr && roomId) ? stateStr : 'online';
+      const nextRoom  = (stateStr && stateStr !== 'online') ? (roomId || null) : null;
+      this.presenceState = nextState;
+      this.presenceRoomId = nextRoom;
       if(!this.user) return;
       const user = this.user;
-      if(this.presenceRef){
+
+      // Atualiza cache local imediatamente para refletir na UI sem atraso
+      if(this.rtdbStatusMap && this.rtdbStatusMap[user.uid]){
+        this.rtdbStatusMap[user.uid] = {
+          ...this.rtdbStatusMap[user.uid],
+          state: nextState,
+          roomId: nextRoom,
+          lastChanged: Date.now()
+        };
+      }
+      if(this.firestoreUsersMap && this.firestoreUsersMap[user.uid]){
+        this.firestoreUsersMap[user.uid] = {
+          ...this.firestoreUsersMap[user.uid],
+          status: nextState,
+          currentRoomId: nextRoom
+        };
+      }
+      this.renderMembersList();
+
+      const ref = this.presenceRef || (Online.db ? Online.db.ref(`status/${user.uid}`) : null);
+      if(ref){
+        this.presenceRef = ref;
         try{
-          await this.presenceRef.update({
-            state: this.presenceState,
+          await ref.update({
+            state: nextState,
             displayName: (user.displayName || 'Jogador').slice(0, 60),
             photoURL: (user.photoURL || '').slice(0, 500),
-            roomId: this.presenceRoomId,
+            roomId: nextRoom,
             lastChanged: firebase.database.ServerValue.TIMESTAMP
           });
         }catch(e){}
@@ -3350,8 +3390,8 @@ html,body{overflow-x:hidden}
         try{
           await Online.fs.collection('users').doc(user.uid).update({
             uid: user.uid,
-            status: this.presenceState,
-            currentRoomId: this.presenceRoomId,
+            status: nextState,
+            currentRoomId: nextRoom,
             lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
@@ -3364,21 +3404,26 @@ html,body{overflow-x:hidden}
         this.connectedRef.off();
         this.connectedRef = null;
       }
-      if(this.presenceRef && this.user){
+      const ref = this.presenceRef;
+      const user = this.user;
+      this.presenceRef = null;
+      this.presenceState = 'online';
+      this.presenceRoomId = null;
+      if(ref && user){
         try{
-          await this.presenceRef.set({
+          await ref.set({
             state: 'offline',
-            displayName: (this.user.displayName || 'Jogador').slice(0, 60),
-            photoURL: (this.user.photoURL || '').slice(0, 500),
+            displayName: (user.displayName || 'Jogador').slice(0, 60),
+            photoURL: (user.photoURL || '').slice(0, 500),
             roomId: null,
             lastChanged: firebase.database.ServerValue.TIMESTAMP
           });
         }catch(e){}
       }
-      if(Online.fs && this.user){
+      if(Online.fs && user){
         try{
-          await Online.fs.collection('users').doc(this.user.uid).update({
-            uid: this.user.uid,
+          await Online.fs.collection('users').doc(user.uid).update({
+            uid: user.uid,
             status: 'offline',
             currentRoomId: null,
             lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
@@ -3386,13 +3431,16 @@ html,body{overflow-x:hidden}
           });
         }catch(e){}
       }
-      this.presenceRef = null;
     },
 
     listenOnlineMembers(){
       if(Online.db){
         Online.db.ref('status').on('value', (snap) => {
           this.rtdbStatusMap = snap.exists() ? (snap.val() || {}) : {};
+          this.renderMembersList();
+        });
+        Online.db.ref('rooms').on('value', (snap) => {
+          this.activeRoomsMap = snap.exists() ? (snap.val() || {}) : {};
           this.renderMembersList();
         });
       }
@@ -3441,7 +3489,7 @@ html,body{overflow-x:hidden}
       allUids.forEach((uid) => {
         const rt = this.rtdbStatusMap[uid];
         const fs = this.firestoreUsersMap[uid];
-        const stateVal = rt ? rt.state : (fs ? fs.status : 'offline');
+        let stateVal = rt ? rt.state : (fs ? fs.status : 'offline');
         if(!stateVal || stateVal === 'offline') return;
 
         if(rt && typeof rt.lastChanged === 'number' && (now - rt.lastChanged) > 12 * 60 * 60 * 1000){
@@ -3451,6 +3499,18 @@ html,body{overflow-x:hidden}
         const photoURL = (rt && rt.photoURL) || (fs && fs.photoURL) || '';
         const wins = (fs && typeof fs.wins === 'number') ? fs.wins : 0;
         const isMe = !!(this.user && this.user.uid === uid);
+
+        // Regra estrita: só exibe como "busy" ou "playing" ("Ocupado") se a sala realmente existir e o jogador estiver nela
+        if(isMe && (Game.mode !== 'online' || !Online.roomId)){
+          stateVal = 'online';
+        } else if(stateVal === 'busy' || stateVal === 'playing'){
+          const memberRoomId = (rt && rt.roomId) || (fs && fs.currentRoomId) || null;
+          const activeRoom = (memberRoomId && this.activeRoomsMap) ? this.activeRoomsMap[memberRoomId] : null;
+          const isInActiveRoom = !!(activeRoom && (activeRoom.hostUid === uid || activeRoom.guestUid === uid));
+          if(!isInActiveRoom){
+            stateVal = 'online';
+          }
+        }
 
         activeMembers.push({
           uid,
