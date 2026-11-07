@@ -8,6 +8,8 @@
         "supportEmail": "criaappoficial@gmail.com",
         "authorizedRedirectUris": [
           "https://jogodavelha-online-app.firebaseapp.com/__/auth/handler",
+          "https://jogodavelha-mu-three.vercel.app",
+          "https://jogodavelha-mu-three.vercel.app/__/auth/handler",
           "http://localhost:8080"
         ]
       }
